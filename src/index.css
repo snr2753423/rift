@@ -233,7 +233,7 @@ svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentCol
   .stage.compare { grid-template-rows: auto; }
   .stage.compare .view { height: 42vh; }
   .stage .toolbar-wrap { position: static; transform: none; justify-self: center; order: 1; }
-  .stage .drill { position: static; width: auto; order: 2; }
+  .stage .drill, .stage.compare .drill.wide { position: static; width: auto; order: 2; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -298,6 +298,7 @@ svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentCol
 .nv-pill.offline .nv-dot { background: var(--amber); box-shadow: none; }
 
 .drill { position: absolute; left: 16px; bottom: 76px; z-index: 11; width: min(400px, calc(100% - 32px)); padding: 18px 20px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.12); border-top: 3px solid var(--maroon); background: linear-gradient(180deg, rgba(42, 6, 6, 0.95), rgba(17, 17, 19, 0.95)); backdrop-filter: blur(14px); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); }
+.stage.compare .drill.wide { width: min(560px, calc(50% - 30px)); } /* stays inside today's view */
 .drill.wide { width: min(560px, calc(100% - 32px)); border-color: rgba(118, 185, 0, 0.45); border-top-color: var(--ai); background: linear-gradient(180deg, rgba(14, 22, 4, 0.95), rgba(17, 17, 19, 0.95)); }
 .drill .step { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--maroon-text); }
 .drill.wide .step { color: #b6e35a; }
