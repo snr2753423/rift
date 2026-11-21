@@ -1,0 +1,5 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# /api/chat is served by netlify/edge-functions/chat.js (path set in the function's config)
