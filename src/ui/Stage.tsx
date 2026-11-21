@@ -31,6 +31,7 @@ export function Stage() {
   useRift(s => s.simGen)
   const decision = useRift(s => s.decision)
   const status = useRift(s => s.agentStatus)
+  const enteredAt = useRift(s => s.enteredAt)
   const base = live.baseline, ai = live.ai
   if (!base) return <main className="stage" />
   const compare = Boolean(decision && ai)
@@ -38,7 +39,7 @@ export function Stage() {
   return (
     <main className={`stage ${compare ? 'compare' : ''}`}>
       <div className="view">
-        <Twin key={`b-${base.scenario.id}-${base.world.zones.length}-${compare}`} sim={base} routeColor="#a1a1aa" compact={compare} />
+        <Twin key={`b-${base.scenario.id}-${base.world.zones.length}-${compare}`} sim={base} routeColor="#a1a1aa" compact={compare} intro={!compare && enteredAt > 0 && performance.now() - enteredAt < 3000} />
         <Hud sim={base} label={compare ? 'Baseline' : 'Live twin'} variant="base" />
       </div>
       {compare && ai && (

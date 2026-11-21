@@ -27,7 +27,9 @@ const COMPACT = {
 }
 const presetFor = (p: keyof typeof PRESETS, compact: boolean) => (compact ? COMPACT : PRESETS)[p]
 
-function CameraRig({ compact }: { compact: boolean }) {
+const INTRO_FROM = new THREE.Vector3(0, 40, 0.01) // straight down, long axis across the screen, as the campus close-up left it
+
+function CameraRig({ compact, intro }: { compact: boolean; intro: boolean }) {
   const preset = useRift(s => s.cameraPreset)
   const camera = useThree(s => s.camera)
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
@@ -37,7 +39,7 @@ function CameraRig({ compact }: { compact: boolean }) {
     const from = camera.position.clone()
     let k = 0, raf = 0
     const tick = () => {
-      k = Math.min(1, k + 0.035)
+      k = Math.min(1, k + (intro ? 0.011 : 0.035))
       const e = 1 - Math.pow(1 - k, 3)
       camera.position.lerpVectors(from, target.current, e)
       controls?.target.set(0, 0, 0)
@@ -46,7 +48,7 @@ function CameraRig({ compact }: { compact: boolean }) {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [preset, camera, controls, compact])
+  }, [preset, camera, controls, compact, intro])
   return null
 }
 
@@ -68,7 +70,7 @@ function PickPlane({ sim }: { sim: Simulation }) {
   )
 }
 
-export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Simulation; routeColor: string; crowdTint?: string; compact?: boolean }) {
+export function Twin({ sim, routeColor, crowdTint, compact = false, intro = false }: { sim: Simulation; routeColor: string; crowdTint?: string; compact?: boolean; intro?: boolean }) {
   const heatmap = useRift(s => s.heatmap)
   const showRoutes = useRift(s => s.showRoutes)
   const tool = useRift(s => s.tool)
@@ -76,7 +78,7 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
     <Canvas
       shadows={false}
       dpr={[1, 1.25]}
-      camera={{ position: presetFor('iso', compact).clone(), fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: (intro ? INTRO_FROM : presetFor('iso', compact)).clone(), fov: 42, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ cursor: tool === 'orbit' ? 'grab' : 'crosshair' }}
     >
@@ -95,7 +97,7 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
         <PickPlane sim={sim} />
       </group>
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={1.38} minDistance={10} maxDistance={70} />
-      <CameraRig compact={compact} />
+      <CameraRig compact={compact} intro={intro} />
       <EffectComposer multisampling={0}>
         <Bloom luminanceThreshold={0.8} luminanceSmoothing={0.2} intensity={0.6} mipmapBlur />
         <Vignette eskil={false} offset={0.2} darkness={0.5} />
