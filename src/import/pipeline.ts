@@ -31,6 +31,8 @@ export interface ImportOptions {
   fallback?: Semantics
   /** twin title, overrides the vision model's */
   title?: string
+  /** skip Nemotron VL, e.g. for a plan we drew ourselves and already know the layout of */
+  vision?: boolean
 }
 
 export interface ImportResult { scenario: Scenario; info: ImportInfo; semantics: Semantics | null }
@@ -55,11 +57,11 @@ export async function importPlan(src: string, onSteps: (steps: Step[]) => void, 
   crop.getContext('2d')!.drawImage(canvas, box.x0, box.y0, bw, bh, 0, 0, crop.width, crop.height)
   const dataUrl = crop.toDataURL('image/jpeg', 0.85)
 
-  push({ label: 'Nemotron VL reading rooms, exits, fire risk…', state: 'run' })
   let semantics: Semantics | null = null
   let provider: ImportInfo['provider'] = opts.fallback ? 'generated' : 'heuristic'
   const fallbackLabel = opts.fallback ? 'using the generated plan’s labels' : 'heuristic fallback'
-  try {
+  if (opts.vision !== false) try {
+    push({ label: 'NVIDIA Nemotron VL reading rooms, exits, fire risk…', state: 'run' })
     const r = await readPlanWithNemotron(dataUrl)
     semantics = r.semantics
     if (semantics) { provider = 'nemotron-vl'; done('ok', `Nemotron VL · ${semantics.rooms.length} rooms, ${semantics.exits.length} exits (${(r.latencyMs / 1000).toFixed(1)}s)`) }

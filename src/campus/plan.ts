@@ -80,7 +80,14 @@ export interface PlanInput {
   footprint: number[]
   entrances?: Pt[]
   rooms: string[]
+  /** 1 = ground floor (exits at the street doors); upper floors exit by stairwells */
+  floor?: number
 }
+
+/** Floors to offer for a building of this height (OpenStreetMap height or levels × 3.6 m). */
+export const floorsFor = (height: number) => Math.max(1, Math.min(6, Math.round(height / 3.6)))
+
+const ROOM_STEP = [0, 1.5, -1, 2, -1.5, 0.5] // room width varies by floor so each floor has its own layout
 
 export interface GeneratedPlan {
   svg: string
@@ -103,7 +110,9 @@ const FIT_W = 62, FIT_H = 38
  * Draw a sim-ready floor plan from a real building footprint: black walls on white, exits as gaps in the
  * outer wall at the mapped entrances, and a schematic interior (corridor spine, rooms with doors).
  */
-export function generatePlan({ footprint, entrances = [], rooms }: PlanInput): GeneratedPlan {
+export function generatePlan({ footprint, entrances = [], rooms: roomList, floor = 1 }: PlanInput): GeneratedPlan {
+  const shift = ((floor - 1) * 2) % roomList.length
+  const rooms = [...roomList.slice(shift), ...roomList.slice(0, shift)]
   const raw = toPoints(footprint)
   const angle = principalAngle(raw)
   const r0 = raw.map(p => rot(p, -angle))
@@ -113,11 +122,12 @@ export function generatePlan({ footprint, entrances = [], rooms }: PlanInput): G
   const poly = raw.map(toPx)
   const B = bbox(poly)
   const cell = Math.max(B.w / FIT_W, B.h / FIT_H) // pixels per simulation cell
-  const wall = Math.max(6, cell * 0.6), exitGap = cell * 3.4, doorGap = cell * 1.8, half = cell * 2.2, roomW = cell * 9
+  const wall = Math.max(6, cell * 0.6), exitGap = cell * 3.4, doorGap = cell * 1.8, half = cell * 2.2, roomW = cell * (9 + ROOM_STEP[(floor - 1) % ROOM_STEP.length])
 
   // --- exits: mapped entrances first, then midpoints of the longest walls, spread apart
   const edges = poly.map((p, i) => ({ p, q: poly[(i + 1) % poly.length], len: Math.hypot(poly[(i + 1) % poly.length][0] - p[0], poly[(i + 1) % poly.length][1] - p[1]) }))
-  const snap = (pt: Pt) => {
+  const snap = (pt: Pt) => snapPx(toPx(pt))
+  const snapPx = (pt: Pt) => {
     let best = { i: 0, t: 0, d: Infinity }
     edges.forEach((e, i) => {
       if (e.len < 1e-6) return
@@ -130,8 +140,19 @@ export function generatePlan({ footprint, entrances = [], rooms }: PlanInput): G
   const exits: { i: number; t: number; pt: Pt; mapped: boolean }[] = []
   const farFromExits = (pt: Pt) => exits.every(e => Math.hypot(e.pt[0] - pt[0], e.pt[1] - pt[1]) > cell * 8)
   const usable = (e: typeof edges[number]) => e.len >= exitGap * 1.3
-  for (const ent of entrances) {
-    const sn = snap(toPx(ent))
+  const stairs = floor > 1
+  // upper floors: stairwells at both ends of the corridor, and mid-building on long floors
+  const stairSpots: Pt[] = stairs ? [[B.x0, (B.y0 + B.y1) / 2], [B.x1, (B.y0 + B.y1) / 2], ...(B.w > B.h * 2.2 ? [[(B.x0 + B.x1) / 2, B.y0] as Pt] : [])] : []
+  for (const sp of stairSpots) {
+    const sn = snapPx(sp)
+    const e = edges[sn.i]
+    if (!usable(e)) continue
+    const t = Math.max(exitGap / 2 / e.len, Math.min(1 - exitGap / 2 / e.len, sn.t))
+    const pt: Pt = [e.p[0] + t * (e.q[0] - e.p[0]), e.p[1] + t * (e.q[1] - e.p[1])]
+    if (farFromExits(pt)) exits.push({ i: sn.i, t, pt, mapped: false })
+  }
+  for (const ent of stairs ? [] : entrances) {
+    const sn = snap(ent)
     const e = edges[sn.i]
     if (sn.d > cell * 3 || !usable(e)) continue
     const t = Math.max(exitGap / 2 / e.len, Math.min(1 - exitGap / 2 / e.len, sn.t))
@@ -192,7 +213,7 @@ export function generatePlan({ footprint, entrances = [], rooms }: PlanInput): G
     semRooms.push({ name, x: fx(a), y: fy(y0), w: (b - a) / B.w, h: (y1 - y0) / B.h })
   }
   labels.push({ x: cross ? B.x0 + B.w / 4 : xc, y: yc + cell * 0.4, text: 'Corridor' })
-  const exitNames = exits.map((e, i) => (i === 0 ? 'Main entrance' : e.mapped ? `Entrance ${i + 1}` : `Fire exit ${i + 1}`))
+  const exitNames = exits.map((e, i) => (stairs ? `Stair ${'ABCDE'[i]}` : i === 0 ? 'Main entrance' : e.mapped ? `Entrance ${i + 1}` : `Fire exit ${i + 1}`))
   exits.forEach((e, i) => {
     const inward: Pt = [e.pt[0] + (xc - e.pt[0]) * 0.12, e.pt[1] + (yc - e.pt[1]) * 0.12]
     labels.push({ x: inward[0], y: inward[1], text: exitNames[i].toUpperCase() })
