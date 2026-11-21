@@ -24,10 +24,13 @@ describe('floor-plan CV', () => {
   })
   it('grids walls with a passable door gap', () => {
     const img = plan()
-    const g = rasterToGrid(img, findContentBox(img), 64, 40)
-    expect(g[20 * 64 + 32] + g[20 * 64 + 31]).toBe(0) // door gap open
-    expect(g[8 * 64 + 31] || g[8 * 64 + 32]).toBe(1) // interior wall present
-    expect(g[20 * 64 + 10]).toBe(0) // room floor open
+    const box = findContentBox(img)
+    const g = rasterToGrid(img, box, 64, 40)
+    // pixel → grid cell through the aspect-preserving fit
+    const at = (px: number, py: number) => g.solid[(g.fit.y + Math.floor(((py - box.y0) / (box.y1 - box.y0 + 1)) * g.fit.h)) * 64 + g.fit.x + Math.floor(((px - box.x0) / (box.x1 - box.x0 + 1)) * g.fit.w)]
+    expect(at(320, 200)).toBe(0) // door gap open
+    expect(at(320, 100)).toBe(1) // interior wall present
+    expect(at(170, 200)).toBe(0) // room floor open
   })
 })
 

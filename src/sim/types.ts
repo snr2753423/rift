@@ -24,7 +24,15 @@ export interface Zone {
 export interface Ignition { cell: Cell; t: number }
 
 export interface ExitDef { id: ExitId; name: string; cells: Cell[]; fireDoor: boolean }
-export interface ZoneDef { id: ZoneId; name: string; rect: [number, number, number, number]; occupants: number }
+export interface ZoneDef {
+  id: ZoneId
+  name: string
+  /** bounding box; also the spawn area when `cells` is absent */
+  rect: [number, number, number, number]
+  occupants: number
+  /** exact room shape (imported plans); spawn and area names use these cells */
+  cells?: Cell[]
+}
 
 /** Static building description: grid of solids (1 wall, 2 furniture) + exits + occupied zones. */
 export interface LayoutDef {
@@ -38,6 +46,8 @@ export interface LayoutDef {
   /** office layout only: named corridor bands for area names and wall-to-wall obstacles */
   corridors: boolean
   source?: string
+  /** cell → zone index (-1 none) for exact-shape rooms */
+  zoneMap?: Int16Array
 }
 
 export interface Scenario {

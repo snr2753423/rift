@@ -14,7 +14,12 @@ RIFT is an AI digital-twin platform for emergency evacuation. It turns a buildin
 2. **Engage Nemotron.** The activity panel streams the model's reasoning token by token, followed by its tool calls (`inspect_environment`, parallel `run_simulation`s, `analyze_bottlenecks`, `commit_strategy`) and the real metric deltas each run produced.
 3. **Side by side.** The baseline (unguided self-evacuation) and the AI-optimised plan replay in lockstep, with computed metric cards and evacuation curves.
 4. **Judge-injected chaos.** Press `O` (obstacle), `F` (fire) or `B` (block exit) and click the twin. The agent re-tests its committed plan under the new conditions and replans autonomously.
-5. **Reality input.** Upload a floor plan, or press *Sample clinic*. Computer vision extracts the walls. **Nemotron VL** reads the rooms, the exits and the likeliest ignition source. A new twin is ready in about 15 s.
+5. **Reality input.** Upload a floor plan, or press *Clinic* or *L-school*. The twin keeps the drawing's **exact shape and proportions**:
+   - everything outside the outer walls is empty space;
+   - every walled area becomes its own room;
+   - exits come from the real gaps in the outer wall.
+
+   **Nemotron VL** names the rooms and exits and picks the likeliest ignition source. A new twin is ready in about 15 s.
 
 ## How Nemotron is used (three essential roles)
 
@@ -101,6 +106,13 @@ That runs 39 tests: simulation, navigation, hazards, strategy sanitisation, agen
 ## Honest limitations
 
 - The simulation is a simplified research toy, not CFD or a validated egress model. Use it to compare strategies, not to certify a building.
-- Floor-plan import is **approximate**: walls come from pixel thresholding, and rooms and exits from a vision model. Best results come from clean black-line plans. Photo and video → 3D reconstruction is **not** implemented.
+- Floor-plan import works at a 0.5 m grid of 64 × 40 cells, so it is **approximate**.
+  - Walls come from pixel thresholding.
+  - Rooms are the walled areas left once door-sized gaps (up to about 2 m) are closed.
+  - A doorway much wider than that merges two rooms, unless the vision model names both, in which case the merged area is split between them.
+  - Doors too narrow for the grid are repaired by adding a doorway, and the import log says so.
+  - Clean black-line plans work best.
+
+  Photo and video → 3D reconstruction is **not** implemented.
 - Occupancy for imported plans is modelled as a surge (at least 60% of floor-area capacity).
 - Single storey. No stairs or multi-floor egress.

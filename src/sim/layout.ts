@@ -84,7 +84,7 @@ export function buildWorld(scenario: Scenario, mods: Modification[]): World {
   const extraIgnitions: World['extraIgnitions'] = []
   for (const m of mods) {
     if (m.kind === 'block_exit') blocked.add(m.exit)
-    if (m.kind === 'obstacle') for (const [x, y] of m.cells) if (x > 0 && y > 0 && x < w - 1 && y < h - 1) solid[idx(x, y)] = 3
+    if (m.kind === 'obstacle') for (const [x, y] of m.cells) if (x > 0 && y > 0 && x < w - 1 && y < h - 1 && solid[idx(x, y)] === 0) solid[idx(x, y)] = 3
     if (m.kind === 'fire') extraIgnitions.push({ cell: m.cell, t: 0 })
   }
 
@@ -101,7 +101,8 @@ export function buildWorld(scenario: Scenario, mods: Modification[]): World {
   const zones: Zone[] = layout.zones.map(z => {
     const spawn: Cell[] = []
     const [x0, y0, x1, y1] = z.rect
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (passable[idx(x, y)] && !isExit[idx(x, y)]) spawn.push([x, y])
+    if (z.cells) { for (const [x, y] of z.cells) if (passable[idx(x, y)] && !isExit[idx(x, y)]) spawn.push([x, y]) }
+    else for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (passable[idx(x, y)] && !isExit[idx(x, y)]) spawn.push([x, y])
     return { ...z, occupants: spawn.length ? scenario.occupancy[z.id] ?? z.occupants : 0, spawn }
   })
 
@@ -110,6 +111,10 @@ export function buildWorld(scenario: Scenario, mods: Modification[]): World {
 
 /** Human-readable area name for a cell (used in hotspots and agent explanations). */
 export function areaName(x: number, y: number, layout: LayoutDef = OFFICE_LAYOUT): string {
+  if (layout.zoneMap) {
+    const zi = layout.zoneMap[y * layout.width + x]
+    return zi >= 0 ? layout.zones[zi]?.name ?? 'Room' : `circulation near (${x},${y})`
+  }
   for (const z of layout.zones) { const [x0, y0, x1, y1] = z.rect; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return z.name }
   if (!layout.corridors) return `circulation near (${x},${y})`
   if (y >= 17 && y <= 22) {

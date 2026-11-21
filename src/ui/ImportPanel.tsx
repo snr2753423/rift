@@ -47,8 +47,8 @@ export function ImportPanel() {
       const { canvas, raster } = rasterize(img)
       const box = findContentBox(raster)
       const grid = rasterToGrid(raster, box, 64, 40)
-      const walls = grid.reduce((a, b) => a + b, 0)
-      done('ok', `Walls extracted · ${walls} wall cells on a 64×40 grid`)
+      const walls = grid.solid.reduce((a, b) => a + b, 0)
+      done('ok', `Walls traced · ${walls} wall cells, true proportions ${grid.fit.w}×${grid.fit.h}`)
       const crop = document.createElement('canvas')
       const bw = box.x1 - box.x0 + 1, bh = box.y1 - box.y0 + 1, k = Math.min(1, 1024 / bw)
       crop.width = Math.round(bw * k); crop.height = Math.round(bh * k)
@@ -90,8 +90,9 @@ export function ImportPanel() {
     <section>
       <h3>Reality input</h3>
       <div className="seg">
-        <button disabled={busy} onClick={() => file.current?.click()}>Upload plan</button>
-        <button disabled={busy} onClick={() => void run('/samples/clinic-plan.svg')}>Sample clinic</button>
+        <button disabled={busy} onClick={() => file.current?.click()}>Upload</button>
+        <button disabled={busy} onClick={() => void run('/samples/clinic-plan.svg')}>Clinic</button>
+        <button disabled={busy} onClick={() => void run('/samples/l-school-plan.svg')}>L-school</button>
       </div>
       <input ref={file} type="file" accept="image/*" hidden onChange={onFile} />
       {steps.length > 0 && (busy || active) && (

@@ -1,8 +1,8 @@
-import { Grid } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CELL } from '../sim/layout'
+import { VOID } from '../import/segment'
 import type { Simulation } from '../sim/simulation'
 import type { World } from '../sim/types'
 import { gx, gz } from './coords'
@@ -58,14 +58,23 @@ function ExitLabel({ sim, index, y }: { sim: Simulation; index: number; y: numbe
     g.strokeStyle = accent
     g.lineWidth = 4
     g.beginPath(); g.roundRect(4, 4, 504, 104, 18); g.fill(); g.stroke()
-    g.font = '500 40px "IBM Plex Mono", ui-monospace, monospace'
+    const value = e.blocked ? 'BLOCKED' : String(n)
+    g.font = '600 44px "IBM Plex Mono", ui-monospace, monospace'
+    const valueW = g.measureText(value).width
+    // shrink the name to fit beside the counter, never overlapping it
+    const room = 488 - valueW - 24 - 26
+    let size = 40
+    g.font = `500 ${size}px "IBM Plex Mono", ui-monospace, monospace`
+    while (size > 22 && g.measureText(e.name).width > room) { size -= 2; g.font = `500 ${size}px "IBM Plex Mono", ui-monospace, monospace` }
+    let label = e.name
+    while (label.length > 3 && g.measureText(label).width > room) label = `${label.slice(0, -2)}…`
     g.fillStyle = e.blocked ? '#ffc2c8' : '#cff7df'
     g.textBaseline = 'middle'
-    g.fillText(e.name, 26, 57)
+    g.fillText(label, 26, 57)
     g.font = '600 44px "IBM Plex Mono", ui-monospace, monospace'
     g.fillStyle = accent
     g.textAlign = 'right'
-    g.fillText(e.blocked ? 'BLOCKED' : String(n), 488, 57)
+    g.fillText(value, 488, 57)
     g.textAlign = 'left'
     tex.needsUpdate = true
   })
@@ -98,6 +107,33 @@ function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
   )
 }
 
+/** Floor drawn only where the building is: grid lines baked into a texture, outside cells transparent. */
+function Floor({ world }: { world: World }) {
+  const tex = useMemo(() => {
+    const S = 16, c = document.createElement('canvas')
+    c.width = world.width * S; c.height = world.height * S
+    const g = c.getContext('2d')!
+    for (let y = 0; y < world.height; y++) for (let x = 0; x < world.width; x++) {
+      if (world.solid[y * world.width + x] === VOID) continue
+      g.fillStyle = (x % 5 === 0 || y % 5 === 0) ? '#1f3a4d' : '#16202b'
+      g.fillRect(x * S, y * S, S, S)
+      g.fillStyle = '#0b1016'
+      g.fillRect(x * S + (x % 5 === 0 ? 1.5 : 1), y * S + (y % 5 === 0 ? 1.5 : 1), S - 1, S - 1)
+    }
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 8
+    return t
+  }, [world])
+  useEffect(() => () => tex.dispose(), [tex])
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={[0, 0.002, 0]}>
+      <planeGeometry args={[world.width * CELL, world.height * CELL]} />
+      <meshStandardMaterial map={tex} transparent alphaTest={0.5} roughness={0.9} metalness={0.1} />
+    </mesh>
+  )
+}
+
 export function Structure({ sim }: { sim: Simulation }) {
   const world = sim.world
   const walls = useMemo(() => cellsOf(world, 1), [world])
@@ -106,11 +142,11 @@ export function Structure({ sim }: { sim: Simulation }) {
   const width = world.width * CELL, depth = world.height * CELL
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} receiveShadow position={[0, -0.01, 0]}>
-        <planeGeometry args={[width + 6, depth + 6]} />
-        <meshStandardMaterial color="#0a0e13" roughness={0.9} metalness={0.1} />
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]}>
+        <planeGeometry args={[width + 14, depth + 14]} />
+        <meshStandardMaterial color="#06080b" roughness={1} />
       </mesh>
-      <Grid position={[0, 0.004, 0]} args={[width, depth]} cellSize={CELL} cellThickness={0.5} cellColor="#16202b" sectionSize={CELL * 5} sectionThickness={0.9} sectionColor="#1f3a4d" fadeDistance={80} fadeStrength={1} />
+      <Floor world={world} />
       <Blocks cells={walls} h={WALL_H} color="#18212c" />
       <Blocks cells={walls} h={0.02} y={WALL_H} color="#6fe3ff" emissive="#3fbfe6" emissiveIntensity={0.75} />
       <Blocks cells={furniture} h={0.42} color="#263241" />
