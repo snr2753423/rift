@@ -9,6 +9,8 @@ export type Heatmap = 'off' | 'density' | 'smoke' | 'danger'
 export type AgentStatus = 'idle' | 'running' | 'done' | 'error'
 /** campus map → (crossfade) → building twin */
 export type View = 'campus' | 'entering' | 'twin'
+/** the drill as the occupant lives it: pick your spot, sound the alarm, see what happened to you */
+export type Drill = 'pick' | 'ready' | 'running' | 'done'
 
 export interface Decision {
   provider: Provider
@@ -27,6 +29,12 @@ interface State {
   building: string | null
   /** when the last campus → twin transition started (performance.now), drives the twin's descending camera */
   enteredAt: number
+  floor: number
+  floors: number
+  drill: Drill
+  /** the simulated person who is "you" (same index in the baseline and the plan runs) */
+  you: number | null
+  youRoom: string | null
   scenarioId: ScenarioId | 'imported'
   customScenario: Scenario | null
   importInfo: ImportInfo | null
@@ -66,12 +74,17 @@ export const useRift = create<State>((set) => ({
   view: 'campus',
   building: null,
   enteredAt: 0,
+  floor: 1,
+  floors: 1,
+  drill: 'pick',
+  you: null,
+  youRoom: null,
   scenarioId: 'kitchen_fire',
   customScenario: null,
   importInfo: null,
   mods: [],
   epoch: 0,
-  playing: true,
+  playing: false,
   speed: 3,
   tool: 'orbit',
   heatmap: 'off',
@@ -85,11 +98,11 @@ export const useRift = create<State>((set) => ({
   runs: [],
   cameraPreset: 'iso',
   simGen: 0,
-  setScenario: (id) => set(s => ({ scenarioId: id, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: true })),
-  loadCustom: (sc, info) => set(s => ({ scenarioId: 'imported', customScenario: sc, importInfo: info, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: true })),
-  addMod: (m) => set(s => ({ mods: [...s.mods, m], epoch: s.epoch + 1, playing: true })),
+  setScenario: (id) => set(s => ({ scenarioId: id, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: false, drill: 'pick', you: null, youRoom: null })),
+  loadCustom: (sc, info) => set(s => ({ scenarioId: 'imported', customScenario: sc, importInfo: info, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: false, drill: 'pick', you: null, youRoom: null })),
+  addMod: (m) => set(s => ({ mods: [...s.mods, m], epoch: s.epoch + 1, playing: true, drill: 'running' })),
   clearMods: () => set(s => ({ mods: [], epoch: s.epoch + 1 })),
-  restart: () => set(s => ({ epoch: s.epoch + 1, playing: true })),
+  restart: () => set(s => ({ epoch: s.epoch + 1, playing: true, drill: 'running' })),
   set: (p) => set(p),
   pushEvent: (e) => { const id = ++eventSeq; set(s => ({ events: [...s.events, { ...e, id }] })); return id },
   patchEvent: (id, p) => set(s => ({ events: s.events.map(ev => (ev.id === id ? { ...ev, ...p } : ev)) })),
