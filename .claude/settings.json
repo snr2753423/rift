@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "hackathon-ecc@hackathon-ecc-claude": true,
+    "hackathon-claude@hackathon-claude-marketplace": false
+  }
+}
