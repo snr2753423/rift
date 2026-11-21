@@ -227,6 +227,13 @@ svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentCol
   .stage.compare { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
   .results { grid-template-columns: 1fr; }
   .agent { min-height: 420px; }
+  /* phones: the twin keeps its own height and the drill card follows it instead of covering it */
+  .app { grid-template-rows: auto auto auto auto; }
+  .stage .view { height: 56vh; }
+  .stage.compare { grid-template-rows: auto; }
+  .stage.compare .view { height: 42vh; }
+  .stage .toolbar-wrap { position: static; transform: none; justify-self: center; order: 1; }
+  .stage .drill { position: static; width: auto; order: 2; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -259,8 +266,12 @@ svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentCol
 .attribution { position: absolute; right: 12px; bottom: 8px; font-size: 11px; color: var(--dim); }
 @media (max-width: 700px) {
   .campus-list { left: 16px; right: 16px; width: auto; bottom: 28px; grid-template-columns: 1fr 1fr; }
-  .campus-head { left: 16px; top: 16px; }
-  .campus-head h1 { font-size: 18px; }
+  .campus-list .list-title { grid-column: 1 / -1; }
+  .campus-list button span { display: none; } /* names only: the details squeeze them onto two lines */
+  /* full-width header on a fade, so building labels pass under the text instead of over it */
+  .campus-head { left: 0; right: 0; top: 0; max-width: none; padding: 16px 16px 28px; background: linear-gradient(var(--bg) 62%, transparent); }
+  .campus-head h1 { font-size: 18px; margin-top: 12px; }
+  .campus-head p { font-size: 13px; }
 }
 .landmarks { position: absolute; inset: 0; pointer-events: none; transition: opacity .4s; }
 .landmarks.hide { opacity: 0; }

@@ -38,9 +38,11 @@ function CameraRig({ compact, intro }: { compact: boolean; intro: boolean }) {
   const preset = useRift(s => s.cameraPreset)
   const camera = useThree(s => s.camera)
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
+  const aspect = useThree(s => s.size.width / Math.max(1, s.size.height))
   const target = useRef(new THREE.Vector3())
   useEffect(() => {
-    target.current.copy(presetFor(preset, compact))
+    // narrow (phone) viewports: back the camera off so the whole floor still fits across
+    target.current.copy(presetFor(preset, compact)).multiplyScalar(compact ? 1 : Math.max(1, Math.min(1.8, 1.2 / aspect))) // compare presets are already framed for narrow views
     const from = camera.position.clone()
     let raf = 0, t0 = 0
     const tick = (now: number) => {
@@ -57,7 +59,7 @@ function CameraRig({ compact, intro }: { compact: boolean; intro: boolean }) {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [preset, camera, controls, compact, intro])
+  }, [preset, camera, controls, compact, intro, aspect])
   return null
 }
 
