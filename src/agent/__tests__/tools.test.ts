@@ -47,6 +47,12 @@ describe('agent tools', () => {
     expect(r).toEqual({ ok: true, committed: 'R1' })
     expect(c.committed).not.toBeNull()
   })
+  it('enforces the simulation budget', async () => {
+    const c = { ...ctx(), maxRuns: 1 }
+    await executeTool('run_simulation', JSON.stringify({ name: 'a' }), c)
+    expect(await executeTool('run_simulation', JSON.stringify({ name: 'b' }), c)).toHaveProperty('error')
+    expect(c.runs.size).toBe(1)
+  })
   it('score and delta helpers', () => {
     expect(pctDelta(100, 80)).toBe(-20)
     expect(pctDelta(0, 5)).toBe(0)

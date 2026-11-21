@@ -14,10 +14,9 @@ export async function readChatStream(body: ReadableStream<Uint8Array>, onDelta: 
   let buf = ''
   for (;;) {
     const { value, done } = await reader.read()
-    if (done) break
-    buf += dec.decode(value, { stream: true })
+    buf += done ? dec.decode() : dec.decode(value, { stream: true })
     const lines = buf.split('\n')
-    buf = lines.pop() ?? ''
+    buf = done ? '' : lines.pop() ?? ''
     let changed = false
     for (const line of lines) {
       const t = line.trim()
@@ -45,6 +44,7 @@ export async function readChatStream(body: ReadableStream<Uint8Array>, onDelta: 
       }
     }
     if (changed) onDelta(msg)
+    if (done) break
   }
   msg.tool_calls = msg.tool_calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}_${Date.now()}` }))
   return msg

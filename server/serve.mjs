@@ -15,9 +15,17 @@ if (existsSync(envFile)) for (const line of readFileSync(envFile, 'utf8').split(
 const api = createNemotronHandler(env)
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' }
 createServer(async (req, res) => {
-  if (req.url?.startsWith('/api/chat')) return api(req, res)
-  const path = normalize(join(root, decodeURIComponent((req.url ?? '/').split('?')[0])))
-  const file = path.startsWith(root) && existsSync(path) && extname(path) ? path : join(root, 'index.html')
-  res.setHeader('Content-Type', types[extname(file)] ?? 'application/octet-stream')
-  res.end(await readFile(file))
-}).listen(Number(env.PORT) || 4173, () => console.log(`RIFT on http://localhost:${Number(env.PORT) || 4173}`))
+  try {
+    if (req.url?.startsWith('/api/chat')) return await api(req, res)
+    let rel
+    try { rel = decodeURIComponent((req.url ?? '/').split('?')[0]) } catch { res.statusCode = 400; return res.end('bad request') }
+    const path = normalize(join(root, rel))
+    const file = path.startsWith(root) && existsSync(path) && extname(path) ? path : join(root, 'index.html')
+    const body = await readFile(file).catch(() => readFile(join(root, 'index.html')))
+    res.setHeader('Content-Type', types[extname(file)] ?? 'application/octet-stream')
+    res.end(body)
+  } catch (e) {
+    console.error('[serve]', e)
+    if (!res.headersSent) { res.statusCode = 500; res.end('server error') } else res.destroy()
+  }
+}).listen(Number(env.PORT) || 4173, env.HOST || '127.0.0.1', () => console.log(`RIFT on http://${env.HOST || '127.0.0.1'}:${Number(env.PORT) || 4173}`))

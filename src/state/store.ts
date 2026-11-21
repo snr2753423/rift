@@ -2,8 +2,7 @@ import { create } from 'zustand'
 import type { AgentEvent, Provider } from '../agent/loop'
 import type { RunRecord } from '../agent/tools'
 import { SCENARIOS, type ScenarioId } from '../sim/scenarios'
-import { BASELINE_STRATEGY } from '../sim/strategy'
-import type { Metrics, Modification, Strategy } from '../sim/types'
+import type { Metrics, Modification, Scenario, Strategy } from '../sim/types'
 
 export type ToolMode = 'orbit' | 'fire' | 'obstacle' | 'block'
 export type Heatmap = 'off' | 'density' | 'smoke' | 'danger'
@@ -18,8 +17,12 @@ export interface Decision {
   changes: string[]
 }
 
+export interface ImportInfo { imageUrl: string; notes: string[]; provider: 'nemotron-vl' | 'heuristic' }
+
 interface State {
-  scenarioId: ScenarioId
+  scenarioId: ScenarioId | 'imported'
+  customScenario: Scenario | null
+  importInfo: ImportInfo | null
   mods: Modification[]
   /** bumping restarts live playback */
   epoch: number
@@ -39,6 +42,7 @@ interface State {
   cameraPreset: 'iso' | 'top' | 'low'
   simGen: number
   setScenario: (id: ScenarioId) => void
+  loadCustom: (sc: Scenario, info: ImportInfo) => void
   addMod: (m: Modification) => void
   clearMods: () => void
   restart: () => void
@@ -53,6 +57,8 @@ let eventSeq = 0
 
 export const useRift = create<State>((set) => ({
   scenarioId: 'kitchen_fire',
+  customScenario: null,
+  importInfo: null,
   mods: [],
   epoch: 0,
   playing: true,
@@ -70,6 +76,7 @@ export const useRift = create<State>((set) => ({
   cameraPreset: 'iso',
   simGen: 0,
   setScenario: (id) => set(s => ({ scenarioId: id, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: true })),
+  loadCustom: (sc, info) => set(s => ({ scenarioId: 'imported', customScenario: sc, importInfo: info, mods: [], epoch: s.epoch + 1, decision: null, events: [], runs: [], agentStatus: 'idle', provider: null, baseline: null, playing: true })),
   addMod: (m) => set(s => ({ mods: [...s.mods, m], epoch: s.epoch + 1, playing: true })),
   clearMods: () => set(s => ({ mods: [], epoch: s.epoch + 1 })),
   restart: () => set(s => ({ epoch: s.epoch + 1, playing: true })),
@@ -80,5 +87,7 @@ export const useRift = create<State>((set) => ({
   resetAgent: () => set({ events: [], runs: [] }),
 }))
 
-export const currentScenario = () => SCENARIOS[useRift.getState().scenarioId]
-export { BASELINE_STRATEGY }
+/** The active scenario: a built-in one or an imported floor plan. */
+export function scenarioOf(s: { scenarioId: ScenarioId | 'imported'; customScenario: Scenario | null }): Scenario {
+  return s.scenarioId === 'imported' && s.customScenario ? s.customScenario : SCENARIOS[s.scenarioId === 'imported' ? 'kitchen_fire' : s.scenarioId]
+}

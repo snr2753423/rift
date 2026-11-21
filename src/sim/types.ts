@@ -1,5 +1,6 @@
-export type ExitId = 'W_LOBBY' | 'E_STAIR' | 'N_STAIR' | 'S_LOBBY' | 'SW_FIREDOOR' | 'NE_FIREDOOR'
-export type ZoneId = 'OFFICE_A' | 'OFFICE_B' | 'OPEN_PLAN' | 'CONFERENCE' | 'KITCHEN' | 'LAB'
+/** exit / zone ids are layout-defined strings (the built-in office uses W_LOBBY, CONFERENCE, …) */
+export type ExitId = string
+export type ZoneId = string
 export type Cell = readonly [number, number]
 
 export interface Exit {
@@ -22,8 +23,26 @@ export interface Zone {
 
 export interface Ignition { cell: Cell; t: number }
 
+export interface ExitDef { id: ExitId; name: string; cells: Cell[]; fireDoor: boolean }
+export interface ZoneDef { id: ZoneId; name: string; rect: [number, number, number, number]; occupants: number }
+
+/** Static building description: grid of solids (1 wall, 2 furniture) + exits + occupied zones. */
+export interface LayoutDef {
+  id: string
+  name: string
+  width: number
+  height: number
+  solid: Uint8Array
+  exits: ExitDef[]
+  zones: ZoneDef[]
+  /** office layout only: named corridor bands for area names and wall-to-wall obstacles */
+  corridors: boolean
+  source?: string
+}
+
 export interface Scenario {
   id: string
+  layout?: LayoutDef
   name: string
   blurb: string
   ignitions: Ignition[]
@@ -41,6 +60,7 @@ export type Modification =
   | { kind: 'block_exit'; exit: ExitId }
 
 export interface World {
+  layout: LayoutDef
   width: number
   height: number
   /** 1 = walkable floor (exits included) */

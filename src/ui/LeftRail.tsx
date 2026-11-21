@@ -1,5 +1,7 @@
 import { SCENARIOS, type ScenarioId } from '../sim/scenarios'
-import { useRift, type Heatmap, type ToolMode } from '../state/store'
+import { scenarioOf, useRift, type Heatmap, type ToolMode } from '../state/store'
+import { OFFICE_LAYOUT } from '../sim/layout'
+import { ImportPanel } from './ImportPanel'
 import { describeMod } from '../agent/tools'
 
 const TOOLS: { id: ToolMode; label: string; hint: string; key: string }[] = [
@@ -25,6 +27,7 @@ export function LeftRail() {
           ))}
         </div>
       </section>
+      <ImportPanel />
       <section>
         <h3>Inject event</h3>
         <div className="tools">
@@ -37,7 +40,7 @@ export function LeftRail() {
         <p className="hint">{TOOLS.find(t => t.id === s.tool)?.hint}{s.decision && s.tool !== 'orbit' ? ' — the agent will replan automatically.' : ''}</p>
         {s.mods.length > 0 && (
           <ul className="mods">
-            {s.mods.map((m, i) => <li key={i}>{describeMod(m)}</li>)}
+            {s.mods.map((m, i) => <li key={i}>{describeMod(m, scenarioOf(s).layout ?? OFFICE_LAYOUT)}</li>)}
             <li><button className="link" onClick={s.clearMods}>Clear injected events</button></li>
           </ul>
         )}

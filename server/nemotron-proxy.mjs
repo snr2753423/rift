@@ -35,6 +35,9 @@ export function createNemotronHandler(env) {
       return send(res, 200, { success: true, data: { configured: Boolean(env.NVIDIA_API_KEY), model: env.NVIDIA_MODEL ?? null, fallbackModel: env.NVIDIA_FALLBACK_MODEL ?? null }, error: null })
     }
     if (req.method !== 'POST') return send(res, 405, { success: false, data: null, error: 'method not allowed' })
+    if (!String(req.headers['content-type'] ?? '').includes('application/json')) return send(res, 415, { success: false, data: null, error: 'content-type must be application/json' })
+    const origin = req.headers.origin
+    if (origin && new URL(origin).host !== req.headers.host) return send(res, 403, { success: false, data: null, error: 'cross-origin requests are not allowed' })
     if (!env.NVIDIA_API_KEY) return send(res, 503, { success: false, data: null, error: 'NVIDIA_API_KEY not configured' })
     const now = Date.now()
     if (now - windowStart > WINDOW_MS) { windowStart = now; count = 0 }
@@ -49,30 +52,37 @@ export function createNemotronHandler(env) {
     const upstream = {
       model,
       messages: body.messages,
-      tools: Array.isArray(body.tools) ? body.tools : undefined,
+      tools: Array.isArray(body.tools) && body.tools.length <= 16 ? body.tools : undefined,
       tool_choice: body.tools ? 'auto' : undefined,
       temperature: typeof body.temperature === 'number' ? Math.min(1, Math.max(0, body.temperature)) : 0.3,
       top_p: 0.95,
-      max_tokens: Math.min(Number(body.max_tokens) || 4096, 8192),
+      max_tokens: Math.min(Math.max(Number(body.max_tokens) || 4096, 256), 8192),
       chat_template_kwargs: body.thinking === false
         ? { enable_thinking: false }
         : { enable_thinking: true, reasoning_budget: Math.min(4096, Math.max(128, Number(body.reasoning_budget) || 1200)) },
       stream: body.stream === true,
     }
     const started = Date.now()
+    const ac = new AbortController()
+    const onClose = () => { if (!res.writableEnded) ac.abort() }
+    res.on('close', onClose)
+    let timer = setTimeout(() => ac.abort(), 60_000) // time to first byte
     try {
       const r = await fetch(NVIDIA_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.NVIDIA_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(upstream),
-        signal: AbortSignal.timeout(90_000),
+        signal: ac.signal,
       })
       if (upstream.stream && r.ok && r.body) {
         res.statusCode = 200
         res.setHeader('Content-Type', 'text/event-stream')
         res.setHeader('Cache-Control', 'no-cache')
-        res.setHeader('X-Model', model)
-        for await (const chunk of r.body) res.write(chunk)
+        for await (const chunk of r.body) {
+          clearTimeout(timer)
+          timer = setTimeout(() => ac.abort(), 30_000) // idle timeout between chunks
+          res.write(chunk)
+        }
         return res.end()
       }
       const text = await r.text()
@@ -83,8 +93,12 @@ export function createNemotronHandler(env) {
       const json = JSON.parse(text)
       return send(res, 200, { success: true, data: { ...json, latencyMs: Date.now() - started, model }, error: null })
     } catch (e) {
-      console.error('[nemotron] request failed', e)
+      console.error('[nemotron] request failed', e instanceof Error ? e.message : e)
+      if (res.headersSent) return res.destroy()
       return send(res, 504, { success: false, data: null, error: 'NVIDIA API unreachable or timed out' })
+    } finally {
+      clearTimeout(timer)
+      res.off('close', onClose)
     }
   }
 }

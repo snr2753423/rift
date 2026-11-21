@@ -1,7 +1,11 @@
-import { EXIT_IDS, ZONE_IDS } from './layout'
-import type { ExitId, Strategy, ZoneId } from './types'
+import { OFFICE_LAYOUT } from './layout'
+import type { ExitId, LayoutDef, Strategy, ZoneId } from './types'
 
 /** Occupants self-evacuate: nearest-familiar exit, fire doors underused (documented in egress studies), no live guidance. */
+export function baselineFor(layout: LayoutDef = OFFICE_LAYOUT): Strategy {
+  return { ...BASELINE_STRATEGY, exitBias: Object.fromEntries(layout.exits.filter(e => e.fireDoor).map(e => [e.id, 1.8])) }
+}
+
 export const BASELINE_STRATEGY: Strategy = {
   name: 'Baseline — unguided self-evacuation',
   exitBias: { SW_FIREDOOR: 1.8, NE_FIREDOOR: 1.8 },
@@ -16,11 +20,12 @@ const clamp = (v: unknown, lo: number, hi: number, d: number) => {
   const n = typeof v === 'number' && Number.isFinite(v) ? v : Number(v)
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d
 }
-const isExit = (v: unknown): v is ExitId => typeof v === 'string' && (EXIT_IDS as string[]).includes(v)
-const isZone = (v: unknown): v is ZoneId => typeof v === 'string' && (ZONE_IDS as string[]).includes(v)
 
 /** Validate untrusted strategy input (LLM tool arguments) into a safe Strategy. */
-export function sanitizeStrategy(raw: Partial<Record<keyof Strategy, unknown>> | null | undefined): Strategy {
+export function sanitizeStrategy(raw: Partial<Record<keyof Strategy, unknown>> | null | undefined, layout: LayoutDef = OFFICE_LAYOUT): Strategy {
+  const exitIds = new Set(layout.exits.map(e => e.id)), zoneIds = new Set(layout.zones.map(z => z.id))
+  const isExit = (v: unknown): v is ExitId => typeof v === 'string' && exitIds.has(v)
+  const isZone = (v: unknown): v is ZoneId => typeof v === 'string' && zoneIds.has(v)
   const r = (raw ?? {}) as Record<string, unknown>
   const exitBias: Strategy['exitBias'] = {}
   const eb = (r.exitBias ?? {}) as Record<string, unknown>

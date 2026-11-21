@@ -8,6 +8,12 @@ const sse = (events: unknown[]) => {
 }
 
 describe('readChatStream', () => {
+  it('parses a final event that has no trailing newline', async () => {
+    const bytes = new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"},"finish_reason":"stop"}]}')
+    const m = await readChatStream(new ReadableStream({ start(c) { c.enqueue(bytes); c.close() } }), () => {})
+    expect(m.content).toBe('a')
+    expect(m.finishReason).toBe('stop')
+  })
   it('accumulates reasoning, content and split tool-call arguments', async () => {
     const deltas: string[] = []
     const m = await readChatStream(sse([

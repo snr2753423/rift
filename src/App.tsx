@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { wireAutomation } from './state/actions'
 import { startDriver } from './state/live'
-import { useRift, type ToolMode } from './state/store'
+import { scenarioOf, useRift, type ToolMode } from './state/store'
 import { AgentPanel } from './ui/AgentPanel'
 import { LeftRail } from './ui/LeftRail'
 import { Results } from './ui/Results'
@@ -23,6 +23,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   const provider = useRift(s => s.provider)
+  const twinName = useRift(s => scenarioOf(s).layout?.name ?? 'Level 1 Office')
   return (
     <div className="app">
       <header className="topbar">
@@ -34,7 +35,7 @@ export default function App() {
           </div>
         </div>
         <div className="crumbs mono">
-          <span>DIGITAL TWIN · Level 1 Office · 32 × 20 m · 0.5 m grid</span>
+          <span>DIGITAL TWIN · {twinName} · 32 × 20 m · 0.5 m grid</span>
         </div>
         <div className="status mono">
           <span className="live-dot" /> SIM ENGINE DETERMINISTIC

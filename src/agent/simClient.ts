@@ -23,7 +23,8 @@ function nextWorker(): Worker {
       // worker failed to load or crashed: fail its jobs and drop it so the next call spawns a fresh one
       console.error('simulation worker error', ev.message)
       for (const [id, p] of pending) if (p.worker === w) { pending.delete(id); p.reject(new Error('simulation worker crashed')) }
-      pool.splice(pool.indexOf(w), 1)
+      const idx = pool.indexOf(w)
+      if (idx >= 0) pool.splice(idx, 1)
       w.terminate()
     }
     pool.push(w)

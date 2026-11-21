@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react'
-import { SCENARIOS } from '../sim/scenarios'
 import { DT, Simulation } from '../sim/simulation'
-import { BASELINE_STRATEGY } from '../sim/strategy'
-import { useRift } from './store'
+import { baselineFor } from '../sim/strategy'
+import { scenarioOf, useRift } from './store'
 
 /** Live (rendered) simulations, stepped in lockstep with a fixed timestep so they match headless runs exactly. */
 export const live: { baseline: Simulation | null; ai: Simulation | null } = { baseline: null, ai: null }
 
 function rebuild() {
   const s = useRift.getState()
-  const sc = SCENARIOS[s.scenarioId]
-  live.baseline = new Simulation(sc, s.mods, BASELINE_STRATEGY)
+  const sc = scenarioOf(s)
+  live.baseline = new Simulation(sc, s.mods, baselineFor(sc.layout))
   live.ai = s.decision ? new Simulation(sc, s.mods, s.decision.strategy) : null
   queueMicrotask(() => useRift.setState(st => ({ simGen: st.simGen + 1 })))
 }
@@ -25,7 +24,7 @@ export function startDriver() {
   rebuild()
   let key = ''
   useRift.subscribe(s => {
-    const k = `${s.epoch}|${s.scenarioId}|${s.mods.length}|${s.decision?.strategy.name ?? ''}|${s.decision?.metrics.evacuationTime ?? ''}`
+    const k = `${s.epoch}|${s.scenarioId}|${s.customScenario?.id ?? ''}|${s.mods.length}|${s.decision?.strategy.name ?? ''}|${s.decision?.metrics.evacuationTime ?? ''}`
     if (k !== key) { key = k; rebuild(); acc = 0 }
   })
   const loop = (now: number) => {

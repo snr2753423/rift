@@ -1,8 +1,8 @@
-import { EXIT_IDS, ZONE_IDS } from '../sim/layout'
-import type { Metrics, Modification, Scenario, Strategy } from '../sim/types'
+import { OFFICE_LAYOUT } from '../sim/layout'
+import type { LayoutDef, Metrics, Modification, Scenario, Strategy } from '../sim/types'
 import { safetyScore } from './score'
 import { readChatStream } from './stream'
-import { TOOL_DEFS, compactMetrics, describeMod, executeTool, type RunRecord, type ToolContext } from './tools'
+import { toolDefs, compactMetrics, describeMod, executeTool, type RunRecord, type ToolContext } from './tools'
 
 export type AgentEventKind = 'status' | 'thought' | 'say' | 'tool_call' | 'tool_result' | 'decision' | 'error'
 export interface AgentEvent {
@@ -41,7 +41,7 @@ const MAX_TURNS = 10
 /** per-turn thinking budget (tokens) — keeps each step to a few seconds on stage */
 const REASONING_BUDGET = 1024
 
-const SYSTEM = `You are RIFT, an autonomous evacuation-strategy engineer operating a digital twin of a building.
+const systemPrompt = (layout: LayoutDef) => `You are RIFT, an autonomous evacuation-strategy engineer operating a digital twin of a building.
 You control real simulation tools. Every number you cite must come from a tool result — never invent metrics.
 
 Objective, in strict priority order:
@@ -52,7 +52,7 @@ Objective, in strict priority order:
 
 Levers (run_simulation arguments): exitBias (signage/PA per exit), zoneAssignments (wardens route a zone to an exit),
 zoneDelays (staged release), hazardAversion, congestionAwareness, reassessInterval.
-Exit ids: ${EXIT_IDS.join(', ')}. Zone ids: ${ZONE_IDS.join(', ')}. Never assign a BLOCKED exit or route a zone through fire.
+Exit ids: ${layout.exits.map(e => e.id).join(', ')}. Zone ids: ${layout.zones.map(z => z.id).join(', ')}. Never assign a BLOCKED exit or route a zone through fire.
 
 Method:
 1. Call inspect_environment. Note which exits sit near the fire/smoke and each zone's walking distance to each exit.
@@ -72,7 +72,7 @@ async function chat(messages: ChatMessage[], input: AgentInput, budget: number |
   const r = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, tools: TOOL_DEFS, temperature: 0.3, max_tokens: 6144, stream: true, thinking: budget !== false, reasoning_budget: budget || undefined }),
+    body: JSON.stringify({ messages, tools: toolDefs(input.scenario.layout ?? OFFICE_LAYOUT), temperature: 0.3, max_tokens: 6144, stream: true, thinking: budget !== false, reasoning_budget: budget || undefined }),
     signal: input.signal,
   })
   if (!r.ok || !r.body || !r.headers.get('content-type')?.includes('event-stream')) {
@@ -102,7 +102,7 @@ function userBrief(input: AgentInput): string {
     return `Scenario: ${input.scenario.name}. ${input.scenario.blurb}\nFind an evacuation strategy that beats the unguided baseline. Begin.`
   }
   const prev = input.replan.previous
-  return `REPLAN — the environment just changed: ${describeMod(input.replan.change)}.
+  return `REPLAN — the environment just changed: ${describeMod(input.replan.change, input.scenario.layout ?? OFFICE_LAYOUT)}.
 Your previously committed strategy "${prev.strategy.name}" was re-simulated under the new conditions and now scores:
 ${JSON.stringify(compactMetrics(prev.metricsNow))}
 Previous strategy parameters: ${JSON.stringify(prev.strategy)}
@@ -114,7 +114,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd(
 /** Nemotron tool-calling loop: plan → simulate → evaluate → refine → commit. */
 export async function runNemotronAgent(input: AgentInput): Promise<AgentOutcome> {
   const ctx: ToolContext = { scenario: input.scenario, mods: input.mods, baseline: input.baseline, runs: new Map(), runSeq: 0, committed: null, onRun: input.onRun }
-  const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM }, { role: 'user', content: userBrief(input) }]
+  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt(input.scenario.layout ?? OFFICE_LAYOUT) }, { role: 'user', content: userBrief(input) }]
   let nudged = false
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (input.signal?.aborted) throw new Error('aborted')

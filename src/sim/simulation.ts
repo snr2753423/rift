@@ -1,8 +1,8 @@
 import { HazardField } from './hazards'
-import { CELL, EXIT_IDS, areaName, buildWorld } from './layout'
+import { CELL, areaName, buildWorld } from './layout'
 import { distanceField } from './navigation'
 import { mulberry32 } from './rng'
-import type { ExitId, Hotspot, Metrics, Modification, Scenario, Strategy, World } from './types'
+import type { Hotspot, Metrics, Modification, Scenario, Strategy, World } from './types'
 
 export const DT = 0.1
 const CROWD_DENSITY = 2.5 // persons/m² — above this, flow degrades sharply (Fruin LoS E/F)
@@ -123,7 +123,7 @@ export class Simulation {
       const f = this.fields[e]
       if (!f || !Number.isFinite(f[ci])) continue
       const wait = this.queue[e] / w.exits[e].flowRate
-      const c = f[ci] * (s.exitBias[w.exits[e].id as ExitId] ?? 1) + s.congestionAwareness * wait * 2.6
+      const c = f[ci] * (s.exitBias[w.exits[e].id] ?? 1) + s.congestionAwareness * wait * 2.6
       if (c < bestCost) { bestCost = c; best = e }
     }
     return best
@@ -215,8 +215,11 @@ export class Simulation {
       const rho = this.density[ci]
       if (rho > CROWD_DENSITY) this.crowdSeconds += dt
       const speed = this.vmax[i] * weidmann(rho) * (1 - 0.5 * sm)
-      let nx = x + (dirX * speed + sx * 1.5) * dt
-      let ny = y + (dirY * speed + sy * 1.5) * dt
+      let mx = (dirX * speed + sx * 1.5) * dt, my = (dirY * speed + sy * 1.5) * dt
+      const step = Math.hypot(mx, my)
+      if (step > 0.45) { mx *= 0.45 / step; my *= 0.45 / step } // never skip a whole cell (no tunnelling through 1-cell walls)
+      let nx = x + mx
+      let ny = y + my
       const ok = (px: number, py: number) => w.passable[(py | 0) * W + (px | 0)] === 1
       if (!ok(nx, ny)) {
         if (ok(nx, y)) ny = y
@@ -254,8 +257,7 @@ export class Simulation {
     const remaining = this.n - this.evacuated - this.incapacitated
     const complete = remaining === 0
     const t90i = Math.ceil(this.n * 0.9) - 1
-    const exitUsage = Object.fromEntries(EXIT_IDS.map(id => [id, 0])) as Record<ExitId, number>
-    w.exits.forEach((e, ei) => { exitUsage[e.id] = this.exitCount[ei] })
+    const exitUsage: Record<string, number> = Object.fromEntries(w.exits.map((e, ei) => [e.id, this.exitCount[ei]]))
     return {
       total: this.n,
       evacuated: this.evacuated,
@@ -326,7 +328,7 @@ export class Simulation {
     for (const i of order) {
       const x = i % W, y = (i / W) | 0
       if (out.some(h => Math.abs(h.x - x) + Math.abs(h.y - y) < 8)) continue
-      out.push({ x, y, area: areaName(x, y), seconds: round1(this.congestion[i]) })
+      out.push({ x, y, area: areaName(x, y, this.world.layout), seconds: round1(this.congestion[i]) })
       if (out.length === 3) break
     }
     return out

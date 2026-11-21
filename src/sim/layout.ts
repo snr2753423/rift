@@ -1,4 +1,4 @@
-import type { Cell, Exit, ExitId, Modification, Scenario, World, Zone, ZoneId } from './types'
+import type { Cell, Exit, ExitDef, ExitId, LayoutDef, Modification, Scenario, World, Zone, ZoneDef, ZoneId } from './types'
 
 export const W = 64
 export const H = 40
@@ -10,7 +10,6 @@ export const ZONE_IDS: ZoneId[] = ['OFFICE_A', 'OFFICE_B', 'OPEN_PLAN', 'CONFERE
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
 
-interface ExitDef { id: ExitId; name: string; cells: Cell[]; fireDoor: boolean }
 export const EXIT_DEFS: ExitDef[] = [
   { id: 'W_LOBBY', name: 'West Lobby', cells: range(18, 21).map(y => [0, y] as Cell), fireDoor: false },
   { id: 'E_STAIR', name: 'East Stair', cells: range(18, 21).map(y => [W - 1, y] as Cell), fireDoor: false },
@@ -20,7 +19,7 @@ export const EXIT_DEFS: ExitDef[] = [
   { id: 'NE_FIREDOOR', name: 'Office Fire Door', cells: range(57, 58).map(x => [x, 0] as Cell), fireDoor: true },
 ]
 
-export const ZONE_DEFS: { id: ZoneId; name: string; rect: [number, number, number, number]; occupants: number }[] = [
+export const ZONE_DEFS: ZoneDef[] = [
   { id: 'OFFICE_A', name: 'Office A', rect: [1, 1, 14, 16], occupants: 18 },
   { id: 'OFFICE_B', name: 'Office B', rect: [16, 1, 28, 16], occupants: 22 },
   { id: 'OPEN_PLAN', name: 'Open-plan Office', rect: [35, 1, 62, 16], occupants: 70 },
@@ -54,10 +53,8 @@ function furniture(): Cell[] {
   return out
 }
 
-export function buildWorld(scenario: Scenario, mods: Modification[]): World {
-  const n = W * H
-  const solid = new Uint8Array(n)
-  const isExit = new Uint8Array(n)
+function officeLayout(): LayoutDef {
+  const solid = new Uint8Array(W * H)
   const idx = (x: number, y: number) => y * W + x
   for (let x = 0; x < W; x++) { solid[idx(x, 0)] = 1; solid[idx(x, H - 1)] = 1 }
   for (let y = 0; y < H; y++) { solid[idx(0, y)] = 1; solid[idx(W - 1, y)] = 1 }
@@ -70,37 +67,51 @@ export function buildWorld(scenario: Scenario, mods: Modification[]): World {
     }
   }
   for (const [x, y] of furniture()) solid[idx(x, y)] = 2
+  return { id: 'office', name: 'Level 1 Office', width: W, height: H, solid, exits: EXIT_DEFS, zones: ZONE_DEFS, corridors: true }
+}
+
+export const OFFICE_LAYOUT: LayoutDef = officeLayout()
+
+export function buildWorld(scenario: Scenario, mods: Modification[]): World {
+  const layout = scenario.layout ?? OFFICE_LAYOUT
+  const { width: w, height: h } = layout
+  const n = w * h
+  const solid = Uint8Array.from(layout.solid)
+  const isExit = new Uint8Array(n)
+  const idx = (x: number, y: number) => y * w + x
 
   const blocked = new Set<ExitId>(scenario.blockedExits)
   const extraIgnitions: World['extraIgnitions'] = []
   for (const m of mods) {
     if (m.kind === 'block_exit') blocked.add(m.exit)
-    if (m.kind === 'obstacle') for (const [x, y] of m.cells) if (x > 0 && y > 0 && x < W - 1 && y < H - 1) solid[idx(x, y)] = 3
+    if (m.kind === 'obstacle') for (const [x, y] of m.cells) if (x > 0 && y > 0 && x < w - 1 && y < h - 1) solid[idx(x, y)] = 3
     if (m.kind === 'fire') extraIgnitions.push({ cell: m.cell, t: 0 })
   }
 
-  const exits: Exit[] = EXIT_DEFS.map(d => {
+  const exits: Exit[] = layout.exits.map((d: ExitDef) => {
     const isBlocked = blocked.has(d.id)
     if (!isBlocked) for (const [x, y] of d.cells) { solid[idx(x, y)] = 0; isExit[idx(x, y)] = 1 }
+    else for (const [x, y] of d.cells) solid[idx(x, y)] = 1
     return { id: d.id, name: d.name, cells: d.cells, flowRate: d.cells.length * CELL * 1.3, isFireDoor: d.fireDoor, blocked: isBlocked }
   })
 
   const passable = new Uint8Array(n)
   for (let i = 0; i < n; i++) passable[i] = solid[i] === 0 ? 1 : 0
 
-  const zones: Zone[] = ZONE_DEFS.map(z => {
+  const zones: Zone[] = layout.zones.map(z => {
     const spawn: Cell[] = []
     const [x0, y0, x1, y1] = z.rect
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (passable[idx(x, y)]) spawn.push([x, y])
-    return { ...z, occupants: scenario.occupancy[z.id] ?? z.occupants, spawn }
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (passable[idx(x, y)] && !isExit[idx(x, y)]) spawn.push([x, y])
+    return { ...z, occupants: spawn.length ? scenario.occupancy[z.id] ?? z.occupants : 0, spawn }
   })
 
-  return { width: W, height: H, passable, isExit, solid, exits, zones, extraIgnitions }
+  return { layout, width: w, height: h, passable, isExit, solid, exits, zones, extraIgnitions }
 }
 
 /** Human-readable area name for a cell (used in hotspots and agent explanations). */
-export function areaName(x: number, y: number): string {
-  for (const z of ZONE_DEFS) { const [x0, y0, x1, y1] = z.rect; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return z.name }
+export function areaName(x: number, y: number, layout: LayoutDef = OFFICE_LAYOUT): string {
+  for (const z of layout.zones) { const [x0, y0, x1, y1] = z.rect; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return z.name }
+  if (!layout.corridors) return `circulation near (${x},${y})`
   if (y >= 17 && y <= 22) {
     if (x < 30) return 'West corridor'
     if (x > 33) return 'East corridor'
@@ -110,7 +121,3 @@ export function areaName(x: number, y: number): string {
   return 'Perimeter'
 }
 
-export function zoneOf(x: number, y: number): ZoneId | null {
-  for (const z of ZONE_DEFS) { const [x0, y0, x1, y1] = z.rect; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return z.id }
-  return null
-}

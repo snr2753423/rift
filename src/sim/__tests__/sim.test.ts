@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mulberry32 } from '../rng'
-import { buildWorld, EXIT_IDS, ZONE_IDS } from '../layout'
+import { buildWorld, EXIT_IDS, ZONE_IDS, OFFICE_LAYOUT } from '../layout'
 import { distanceField, astar } from '../navigation'
 import { HazardField } from '../hazards'
 import { runHeadless } from '../simulation'
@@ -32,6 +32,21 @@ describe('layout', () => {
   it('exposes stable ids', () => {
     expect(EXIT_IDS.length).toBe(6)
     expect(ZONE_IDS.length).toBe(6)
+  })
+  it('builds a world from a custom layout and validates strategy ids against it', () => {
+    const solid = new Uint8Array(64 * 40)
+    for (let x = 0; x < 64; x++) { solid[x] = 1; solid[39 * 64 + x] = 1 }
+    for (let y = 0; y < 40; y++) { solid[y * 64] = 1; solid[y * 64 + 63] = 1 }
+    const layout = { ...OFFICE_LAYOUT, id: 'custom', corridors: false, solid,
+      exits: [{ id: 'EXIT_1', name: 'Door', cells: [[0, 20], [0, 21]] as [number, number][], fireDoor: false }],
+      zones: [{ id: 'ROOM_1', name: 'Hall', rect: [5, 5, 30, 30] as [number, number, number, number], occupants: 30 }] }
+    const scenario = { ...calm, layout }
+    const m = runHeadless(scenario, [], BASELINE_STRATEGY)
+    expect(m.total).toBe(30)
+    expect(m.remaining).toBe(0)
+    expect(Object.keys(m.exitUsage)).toEqual(['EXIT_1'])
+    const s = sanitizeStrategy({ zoneAssignments: { ROOM_1: 'EXIT_1', LAB: 'E_STAIR' } }, layout)
+    expect(s.zoneAssignments).toEqual({ ROOM_1: 'EXIT_1' })
   })
 })
 
