@@ -6,10 +6,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { OrbitControls as OrbitImpl } from 'three-stdlib'
 import type { CampusData, Spot } from './data'
 import { matchTwinPose, orientedBox, type Rect } from './framing'
+import { Greenery } from './Greenery'
+import { withWindows } from './windows'
 import { toPoints } from './plan'
 
 const HEIGHT_SCALE = 1.5 // a little taller than life so the campus reads from far away
 const FOV = 35
+const FLOOR_H = 3.6 * HEIGHT_SCALE // one storey, as drawn
 const OVERVIEW = { pos: new THREE.Vector3(520, 1250, 1500), target: new THREE.Vector3(0, 0, 120) }
 const INTRO_FROM = new THREE.Vector3(900, 2600, 2700)
 
@@ -85,10 +88,11 @@ function Context({ data, spots, dim }: { data: CampusData; spots: Spot[]; dim: n
     return merged
   }, [data, spots])
   useEffect(() => () => geo?.dispose(), [geo])
-  const mat = useRef<THREE.MeshStandardMaterial>(null)
-  useFrame(() => { if (mat.current) mat.current.opacity += ((1 - dim * 0.75) - mat.current.opacity) * 0.08 })
+  const mat = useMemo(() => withWindows(new THREE.MeshStandardMaterial({ color: '#3c3f47', roughness: 0.95, transparent: true }), FLOOR_H, 0.22), [])
+  useEffect(() => () => mat.dispose(), [mat])
+  useFrame(() => { mat.opacity += ((1 - dim * 0.75) - mat.opacity) * 0.08 })
   if (!geo) return null
-  return <mesh geometry={geo} raycast={() => null}><meshStandardMaterial ref={mat} color="#3c3f47" roughness={0.95} transparent /></mesh>
+  return <mesh geometry={geo} material={mat} raycast={() => null} />
 }
 
 /** Keeps the DOM labels (owned by the overlay) pinned above their buildings. */
@@ -122,7 +126,7 @@ function Landmark({ spot, hovered, selected, busy, onHover, onPick }: { spot: Sp
         onPointerOut={() => onHover(null)}
         onClick={e => { e.stopPropagation(); if (!busy) onPick(spot) }}
       >
-        <meshStandardMaterial color={lit ? '#6e1a1a' : '#500000'} emissive={lit ? '#500000' : '#200000'} emissiveIntensity={lit ? 0.5 : 0.3} roughness={0.7} />
+        <meshStandardMaterial ref={m => { if (m && !m.customProgramCacheKey().startsWith('windows')) withWindows(m, FLOOR_H, 0.35) }} color={lit ? '#6e1a1a' : '#500000'} emissive={lit ? '#500000' : '#200000'} emissiveIntensity={lit ? 0.5 : 0.3} roughness={0.7} />
       </mesh>
     </group>
   )
@@ -173,6 +177,7 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
         <planeGeometry args={[9000, 9000]} />
         <meshStandardMaterial color="#101012" roughness={1} />
       </mesh>
+      <Greenery data={data} />
       <Roads data={data} />
       <Context data={data} spots={spots} dim={selected ? 1 : 0} />
       {spots.map(s => <Landmark key={s.name} spot={s} hovered={hovered === s.name} selected={selected?.name === s.name} busy={Boolean(selected)} onHover={onHover} onPick={onPick} />)}

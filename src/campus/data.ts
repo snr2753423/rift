@@ -1,8 +1,9 @@
 import { FEATURED, type Featured } from './buildings'
+import type { GreenData } from './Greenery'
 import { principalAngle, toPoints, type Pt } from './plan'
 
 export interface CampusBuilding { n?: string; h: number; p: number[]; e?: Pt[] }
-export interface CampusData { attribution: string; center: [number, number]; buildings: CampusBuilding[]; roads: { k: 'major' | 'minor' | 'path'; p: number[] }[] }
+export interface CampusData extends GreenData { attribution: string; center: [number, number]; buildings: CampusBuilding[]; roads: { k: 'major' | 'minor' | 'path'; p: number[] }[] }
 
 /** A featured building with the geometry the camera and the twin need. */
 export interface Spot extends Featured {

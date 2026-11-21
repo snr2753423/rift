@@ -85,6 +85,21 @@ function ExitLabel({ sim, index, y }: { sim: Simulation; index: number; y: numbe
   )
 }
 
+let exitSignTex: THREE.CanvasTexture | null = null
+/** One shared "EXIT" face, white on emergency green, like a lit exit sign. */
+function exitSign() {
+  if (exitSignTex) return exitSignTex
+  const c = document.createElement('canvas')
+  c.width = 128; c.height = 48
+  const g = c.getContext('2d')!
+  g.fillStyle = '#0fbf55'; g.fillRect(0, 0, 128, 48)
+  g.fillStyle = '#ffffff'; g.font = '700 30px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.fillText('EXIT', 64, 26)
+  exitSignTex = new THREE.CanvasTexture(c)
+  exitSignTex.colorSpace = THREE.SRGBColorSpace
+  return exitSignTex
+}
+
 function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
   const e = sim.world.exits[index]
   const xs = e.cells.map(c => c[0]), ys = e.cells.map(c => c[1])
@@ -102,6 +117,19 @@ function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
         <boxGeometry args={horizontal ? [len, 0.05, 0.5] : [0.5, 0.05, len]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
+      {!e.blocked && (
+        // lit sign over the door, readable from both sides; it glows through the bloom pass
+        <mesh position={[0, WALL_H + 0.35, 0]} rotation-y={horizontal ? 0 : Math.PI / 2}>
+          <boxGeometry args={[Math.min(1.4, len * 0.6), 0.5, 0.08]} />
+          <meshBasicMaterial map={exitSign()} toneMapped={false} />
+        </mesh>
+      )}
+      {!e.blocked && (
+        <mesh position={[0, 0.06, 0]} rotation-x={-Math.PI / 2}>
+          <circleGeometry args={[Math.max(1.2, len * 0.7), 24]} />
+          <meshBasicMaterial color="#19e36b" transparent opacity={0.1} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
       <ExitLabel sim={sim} index={index} y={3.3} />
     </group>
   )
