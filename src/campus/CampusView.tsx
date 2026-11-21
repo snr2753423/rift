@@ -50,6 +50,7 @@ export function CampusView() {
   }
 
   const returnFrom = campus?.spots.find(s => s.name === returnName.current) ?? null
+  const startSpot = campus?.spots[0] ?? null
   return (
     <div className={`campus ${fading ? 'leaving' : ''}`}>
       {campus && (
@@ -68,8 +69,19 @@ export function CampusView() {
       )}
       <header className={`campus-head ${selected ? 'hide' : ''}`}>
         <span className="wordmark">RIFT<span>.</span></span>
-        <h1>If the fire alarm went off right now, how would you get out?</h1>
-        <p>{campus ? 'Pick a building you spend time in. You choose your floor and where you are; then see how today’s evacuation plays out for you, and what NVIDIA Nemotron would change.' : 'Loading Texas A&M…'}</p>
+        <h1>If the fire alarm went off right now, would you get out?</h1>
+        <p>{campus ? 'RIFT turns any Texas A&M building into a live fire drill with you inside it. Watch how today’s evacuation plays out, then watch NVIDIA Nemotron rewrite the plan to save more people, tested in real simulations, not guessed.' : 'Loading Texas A&M…'}</p>
+        {campus && (
+          <>
+            <ol className="how">
+              <li><b>1</b><span><strong>Pick a building</strong>Your floor, your room</span></li>
+              <li><b>2</b><span><strong>Live the drill</strong>Fire, smoke, crowds, you</span></li>
+              <li className="nv"><b>3</b><span><strong>Nemotron plans</strong>Dozens of simulated drills</span></li>
+            </ol>
+            <p className="why">In real fires, most people try to leave the way they came in, even when that is where the fire is. Drills test one plan a year. RIFT tests dozens in a minute.</p>
+            {startSpot && <button className="btn primary start" onClick={() => void pick(startSpot)}>Start in the {startSpot.short}<span aria-hidden>→</span></button>}
+          </>
+        )}
       </header>
       {campus && !selected && (
         <nav className="campus-list" aria-label="Buildings">

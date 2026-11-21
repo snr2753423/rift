@@ -135,18 +135,40 @@ function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
   )
 }
 
-/** Floor drawn only where the building is: grid lines baked into a texture, outside cells transparent. */
+// dark, desaturated room tints (no violet): slate, moss, clay, teal, olive, rust, steel
+const ROOM_TINTS = ['#161b26', '#15201a', '#221a16', '#132024', '#1d1f14', '#231714', '#181c22']
+
+/** Floor drawn only where the building is: room tints, names and grid lines baked into a texture, outside cells transparent. */
 function Floor({ world }: { world: World }) {
   const tex = useMemo(() => {
     const S = 16, c = document.createElement('canvas')
     c.width = world.width * S; c.height = world.height * S
     const g = c.getContext('2d')!
+    // each room its own quiet tint, so you can tell rooms apart at a glance
+    const zoneOf = new Int16Array(world.width * world.height).fill(-1)
+    world.zones.forEach((z, zi) => {
+      for (const [x, y] of z.spawn) zoneOf[y * world.width + x] = zi
+    })
     for (let y = 0; y < world.height; y++) for (let x = 0; x < world.width; x++) {
       if (world.solid[y * world.width + x] === VOID) continue
-      g.fillStyle = (x % 5 === 0 || y % 5 === 0) ? '#22242a' : '#18191d'
+      const zi = zoneOf[y * world.width + x]
+      const corridor = zi >= 0 && /corridor|hall(way)?$/i.test(world.zones[zi].name)
+      g.fillStyle = (x % 5 === 0 || y % 5 === 0) ? '#26282e' : '#1c1d22'
       g.fillRect(x * S, y * S, S, S)
-      g.fillStyle = '#111215'
+      g.fillStyle = zi < 0 || corridor ? '#141519' : ROOM_TINTS[zi % ROOM_TINTS.length]
       g.fillRect(x * S + (x % 5 === 0 ? 1.5 : 1), y * S + (y % 5 === 0 ? 1.5 : 1), S - 1, S - 1)
+    }
+    // room names painted on the floor, like wayfinding
+    g.textAlign = 'center'; g.textBaseline = 'middle'
+    for (const z of world.zones) {
+      if (/corridor/i.test(z.name)) continue
+      if (!z.spawn.length) continue
+      const xs = z.spawn.map(c => c[0]), ys = z.spawn.map(c => c[1])
+      const w = (Math.max(...xs) - Math.min(...xs) + 1) * S, h = (Math.max(...ys) - Math.min(...ys) + 1) * S
+      const size = Math.max(13, Math.min(26, (w * 0.8) / (z.name.length * 0.62), h * 0.22))
+      g.font = `600 ${size}px Inter, Arial, sans-serif`
+      g.fillStyle = 'rgba(236, 238, 242, 0.34)'
+      g.fillText(z.name.toUpperCase(), ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * S, ((Math.min(...ys) + Math.max(...ys) + 1) / 2) * S)
     }
     const t = new THREE.CanvasTexture(c)
     t.colorSpace = THREE.SRGBColorSpace

@@ -6,7 +6,7 @@ type Card = { label: string; hint: string; get: (m: Metrics) => number; fmt: (v:
 
 // everything here is "lower is better"
 const CARDS: Card[] = [
-  { label: 'Casualty rate', hint: 'overcome by smoke or fire', get: m => (m.total ? (m.incapacitated / m.total) * 100 : 0), fmt: v => v.toFixed(v > 0 && v < 10 ? 1 : 0), unit: '%' },
+  { label: 'People overcome', hint: 'by smoke or fire', get: m => m.incapacitated + m.remaining, fmt: v => String(Math.round(v)) },
   { label: 'Chaos', hint: 'crowd crush, person-seconds above 2.5 people/m²', get: m => m.congestionIndex, fmt: v => Math.round(v).toLocaleString() },
   { label: 'Smoke breathed', hint: 'average smoke dose per person', get: m => m.meanExposure, fmt: v => v.toFixed(1) },
   { label: 'Everyone out', hint: 'time until 90% have left', get: m => m.t90, fmt: v => v.toFixed(0), unit: 's' },
@@ -31,8 +31,10 @@ function Curve({ base, ai }: { base: Metrics; ai: Metrics | null }) {
 }
 
 export function Results() {
-  const { baseline, decision, baselineBusy } = useRift()
+  const { baseline, decision, baselineBusy, drill } = useRift()
   if (!baseline) return <footer className="results"><div className="results-empty">{baselineBusy ? 'Simulating today’s procedure…' : 'No drill yet'}</div></footer>
+  // no spoilers: today's numbers land when the drill ends
+  if (!decision && drill !== 'done') return <footer className="results"><div className="results-empty">{drill === 'running' ? 'Drill in progress. Lives, time, smoke and crowding land here when it ends, each measured in the simulation.' : 'Your results land here after the drill: lives, time, smoke and crowding, each measured in the simulation.'}</div></footer>
   const ai = decision?.metrics ?? null
   const fallback = decision?.provider === 'fallback'
   return (

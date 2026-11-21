@@ -6,8 +6,9 @@ import type { ExitId, LayoutDef, Strategy, ZoneId } from './types'
  * when the plan names the everyday exit every other one is avoided, otherwise fire doors are underused.
  */
 export function baselineFor(layout: LayoutDef = OFFICE_LAYOUT): Strategy {
+  // an everyday exit is a strong pull (a 3x detour still feels shorter); otherwise fire doors are merely underused
   const known = layout.exits.some(e => e.familiar)
-  return { ...BASELINE_STRATEGY, exitBias: Object.fromEntries(layout.exits.filter(e => (known ? !e.familiar : e.fireDoor)).map(e => [e.id, 1.8])) }
+  return { ...BASELINE_STRATEGY, exitBias: Object.fromEntries(layout.exits.filter(e => (known ? !e.familiar : e.fireDoor)).map(e => [e.id, known ? 3 : 1.8])) }
 }
 
 export const BASELINE_STRATEGY: Strategy = {

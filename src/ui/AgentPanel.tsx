@@ -22,7 +22,7 @@ function argsSummary(args: unknown): string {
     const v = a[k] as Record<string, unknown> | undefined
     if (v && Object.keys(v).length) parts.push(`${k}: ${Object.entries(v).map(([z, e]) => `${z}→${e}`).join(', ')}`)
   }
-  for (const k of ['hazardAversion', 'congestionAwareness', 'reassessInterval'] as const) if (a[k] !== undefined) parts.push(`${k}=${String(a[k])}`)
+  for (const k of ['voiceAlert', 'hazardAversion', 'congestionAwareness', 'reassessInterval'] as const) if (a[k] !== undefined) parts.push(`${k}=${String(a[k])}`)
   return parts.join(' · ')
 }
 
@@ -42,6 +42,7 @@ function ResultLine({ result }: { result: unknown }) {
   if (m && d) return (
     <div className="run num">
       <b>{String(r.run_id)}</b>
+      <span className={Number(d.incapacitated) < 0 ? 'saved' : Number(m.incapacitated) > 0 ? 'lost' : ''}>{Number(m.incapacitated) === 0 ? 'no one lost' : `${String(m.incapacitated)} lost`}{Number(d.incapacitated) < 0 ? ` (${-Number(d.incapacitated)} saved)` : ''}</span>
       <span>{String(m.evacuation_time_s)}s <Delta v={d.evacuation_time} /></span>
       <span>smoke <Delta v={d.smoke_exposure} /></span>
       <span>crush <Delta v={d.crowd_crush} /></span>
@@ -123,11 +124,11 @@ export function AgentPanel() {
       </div>
       {events.length === 0 ? (
         <div className="agent-empty">
-          <p>Today's procedure is "go to the exit you know". Nemotron tries to do better by running real simulations of this floor, not by guessing.</p>
+          <p>Today’s procedure is a bell and “leave the way you came in”. In real fires, that is exactly what costs lives. NVIDIA Nemotron rewrites the plan by running full simulations of this floor, not by guessing.</p>
           <ol>
-            <li><div>Studies the floor<span>Exits, rooms, the fire and where people are</span></div></li>
-            <li><div>Tests plans in parallel<span>Each one is a full evacuation simulation</span></div></li>
-            <li><div>Keeps the safest plan<span>Only if it beats today's procedure</span></div></li>
+            <li><div>Studies the floor<span>Exits, rooms, the fire and where everyone is</span></div></li>
+            <li><div>Tests plans in parallel<span>Voice alerts, wardens, signage, smoke-aware routes: each one a full evacuation</span></div></li>
+            <li><div>Keeps the plan that saves the most people<span>It cannot commit a plan that loses as many lives as today’s</span></div></li>
           </ol>
         </div>
       ) : (

@@ -10,7 +10,7 @@ function youLine(y: You) {
   if (y.status === 'out') return `Out in ${fmtTime(y.time ?? 0)} via ${y.exit}`
   if (y.status === 'overcome') return 'Overcome by smoke'
   if (y.status === 'moving') return `Heading for ${y.heading ?? 'an exit'}`
-  return 'Waiting for the alarm'
+  return 'Not moving yet: still working out what the bell means'
 }
 
 function Picker() {
@@ -20,7 +20,7 @@ function Picker() {
   const rooms = sim.world.zones.map((z, i) => ({ z, i })).filter(({ z }) => !/corridor/i.test(z.name))
   return (
     <>
-      <span className="step">Step 1 of 3</span>
+      <span className="step">Step 1 · Your spot</span>
       <h3>Where are you when the alarm goes off?</h3>
       <p>Tap a room on the floor plan, or pick one here.</p>
       <div className="room-chips">
@@ -36,9 +36,9 @@ function Ready() {
   const { youRoom, floor, set, restart } = useRift()
   return (
     <>
-      <span className="step">Step 2 of 3</span>
+      <span className="step">Step 2 · Sound the alarm</span>
       <h3>You're in {youRoom}, floor {floor}.</h3>
-      <p>Everyone around you follows today's procedure: head for the exit you know.</p>
+      <p>Everyone around you follows today's procedure: a bell, then the way they came in. You'll see a maroon ring on yourself.</p>
       <div className="actions">
         <button className="btn alarm" onClick={restart}><span className="bell" aria-hidden />Sound the fire alarm</button>
         <button className="btn ghost" onClick={() => set({ you: null, youRoom: null, drill: 'pick' })}>Move</button>
@@ -56,7 +56,7 @@ function Running() {
   const yb = youIn(b, you), ya = a ? youIn(a, you) : null
   return (
     <>
-      <span className="step">{decision ? 'Replaying both plans' : 'Step 3 of 3 · Evacuating'}</span>
+      <span className="step">{decision ? 'Step 5 · Both plans, same fire' : 'Step 3 · Watch yourself evacuate'}</span>
       <div className="you-live">
         <div><b>{decision ? "Today's plan" : 'You'}</b><span>{youLine(yb)}</span></div>
         {ya && <div className="nv"><b>Nemotron's plan</b><span>{youLine(ya)}</span></div>}
@@ -89,7 +89,7 @@ function Result() {
   const y = youIn(b, you), o = outcomeOf(b)
   return (
     <>
-      <span className="step">Your result · today's procedure</span>
+      <span className="step">Step 4 · Your result, then ask Nemotron</span>
       <Headline y={y} />
       <p>{y.exit ? `Via ${y.exit}. ` : ''}{Math.round(y.crush)}s packed in a crowd, {Math.round(Math.min(1, y.smoke) * 100)}% of a dangerous smoke dose.</p>
       <div className="facts">

@@ -25,7 +25,12 @@ Reliability around the model:
 
 With thinking disabled, Nemotron misidentified which exit clears last in a capacity question. With a 300-token reasoning budget it answered correctly (B, 38.5 s), which is why RIFT keeps budgeted reasoning on.
 
-## The simulation
+## The campus fire drill
+
+Campus drills model the case that costs lives in documented building fires. The fire starts in the room beside the exit people use every day (the main entrance on the ground floor, Stair A upstairs). Today's procedure is a bell with no other guidance. People take 4–18 s to start moving and head for the exit they know; every other exit is treated as a 3× longer walk. Smoke is thicker and more toxic than in the demo office: a person is overcome after a dose of 24 smoke-seconds (45 in the office). Nobody starts the drill standing inside the fire.
+
+The planner has one extra lever for this: `voiceAlert` (a directed voice message plus floor wardens). It cuts the delay before people move by up to 60%, the effect egress research reports for voice alarms over bells. These values are illustrative, chosen so that plan choices change outcomes; they are not calibrated against a real building.
+
 
 - **Grid:** 64 × 40 cells. The built-in office uses 0.5 m cells (32 × 20 m); campus buildings and imported plans are scaled to fit the grid.
 - **Navigation:** multi-source Dijkstra flow fields per exit with smoke- and fire-weighted costs, refreshed every simulated second. A* answers route queries.

@@ -4,6 +4,8 @@ import { live, useTicker } from '../state/live'
 import { useRift } from '../state/store'
 import { fmtTime } from './format'
 import { DrillCard } from './DrillCard'
+import { Caption, Legend, StepRail } from './Guide'
+import { Impact } from './Impact'
 import { NemotronPill } from './NemotronPill'
 import { Toolbar } from './Toolbar'
 
@@ -29,6 +31,13 @@ function Hud({ sim, label, variant }: { sim: Simulation; label: string; variant:
   )
 }
 
+/** Red alarm pulse round the live view while today's drill is running. */
+function AlarmGlow({ sim }: { sim: Simulation }) {
+  useTicker(4)
+  const on = useRift(s => s.drill === 'running' && !s.decision)
+  return on && !sim.done ? <div className="alarm-glow" aria-hidden /> : null
+}
+
 export function Stage() {
   useRift(s => s.simGen)
   const decision = useRift(s => s.decision)
@@ -43,6 +52,7 @@ export function Stage() {
       <div className="view">
         <Twin key={`b-${base.scenario.id}-${base.world.zones.length}-${compare}`} sim={base} routeColor="#a1a1aa" compact={compare} intro={!compare && enteredAt > 0 && performance.now() - enteredAt < 3000} />
         <Hud sim={base} label={compare ? "Today's procedure" : 'Live drill'} variant="base" />
+        <AlarmGlow sim={base} />
       </div>
       {compare && ai && (
         <div className="view ai">
@@ -50,8 +60,13 @@ export function Stage() {
           <Hud sim={ai} label={aiLabel} variant="ai" />
         </div>
       )}
+      <div className="guide">
+        <StepRail />
+        {status === 'running' ? <NemotronPill /> : <Caption />}
+      </div>
+      <Legend />
       <DrillCard />
-      <NemotronPill />
+      <Impact />
       <Toolbar />
     </main>
   )
