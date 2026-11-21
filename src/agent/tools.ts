@@ -25,6 +25,7 @@ const strategySchema = (EXIT_IDS: string[], ZONE_IDS: string[]) => ({
     exitBias: { type: 'object', description: `Per-exit route-cost multiplier (0.25–4). <1 attracts people (signage, PA announcements), >1 repels. Keys: ${EXIT_IDS.join(', ')}`, additionalProperties: { type: 'number' } },
     zoneAssignments: { type: 'object', description: `Warden-directed exit per zone. Keys: ${ZONE_IDS.join(', ')}; values: exit ids`, additionalProperties: { type: 'string' } },
     zoneDelays: { type: 'object', description: 'Staged release: seconds (0–60) each zone waits after the alarm', additionalProperties: { type: 'number' } },
+    voiceAlert: { type: 'number', description: 'Directed voice evacuation message + floor wardens (0–1). Baseline 0 = alarm bell only. 1 cuts the delay before people start moving by 60%: the strongest lever against casualties near the fire' },
     hazardAversion: { type: 'number', description: 'How strongly routes avoid smoke/fire (0–10). Baseline 1.5' },
     congestionAwareness: { type: 'number', description: 'Live queue-aware guidance (0–1). 0 = people ignore queues' },
     reassessInterval: { type: 'number', description: 'Seconds between route reassessments (1–60). Lower = more dynamic guidance' },
@@ -93,7 +94,8 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
       zones: world.zones.map(z => ({ id: z.id, name: z.name, occupants: z.occupants })),
       walking_distance_m_from_zone_centre_to_exit: zoneExitDistances,
       hazards: [...ctx.scenario.ignitions.map(i => `Fire at t=${i.t}s in ${areaName(i.cell[0], i.cell[1], layout)}`), ...ctx.mods.map(m => describeMod(m, layout))],
-      baseline_strategy: 'Unguided self-evacuation: occupants pick familiar/nearest exits, underuse fire doors (bias 1.8), ignore queues, reassess every 20 s.',
+      baseline_strategy: `Today's procedure: an alarm bell only (people take 4–18 s to start moving), everyone heads for the exit they know${layout.exits.some(e => e.familiar) ? ` (${layout.exits.filter(e => e.familiar).map(e => e.name).join(', ')}; every other exit is avoided, bias 1.8)` : ' and underuses fire doors (bias 1.8)'}, ignores queues and smoke, reassesses every 20 s.`,
+      casualties_today: ctx.baseline.incapacitated,
       baseline_metrics: compactMetrics(ctx.baseline),
       baseline_bottlenecks: ctx.baseline.hotspots,
     }
@@ -132,6 +134,10 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
   if (name === 'commit_strategy') {
     const rec = ctx.runs.get(String(args.run_id))
     if (!rec) return { error: `unknown run_id ${String(args.run_id)} — you must commit a run you simulated` }
+    const lost = ctx.baseline.incapacitated
+    if (lost > 0 && rec.metrics.incapacitated >= lost) {
+      return { error: `run ${rec.id} loses ${rec.metrics.incapacitated} people; today's procedure loses ${lost}. A plan must lower casualties before anything else. Try voiceAlert 1 so people react sooner, raise hazardAversion, and route zones near the fire away from it.` }
+    }
     if (safetyScore(rec.metrics) > safetyScore(ctx.baseline)) {
       return { error: `run ${rec.id} is worse than the baseline on the safety score (incapacitations, t90, exposure). Try another strategy before committing.` }
     }

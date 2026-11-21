@@ -226,7 +226,9 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
     const inward: Pt = [e.pt[0] + (xc - e.pt[0]) * 0.12, e.pt[1] + (yc - e.pt[1]) * 0.12]
     labels.push({ x: inward[0], y: inward[1], text: exitNames[i].toUpperCase() })
   })
-  const fire = semRooms.find(x => /kitchen|lab|shop|servery|cafe/i.test(x.name)) ?? semRooms[0]
+  // the drill's fire breaks out in the room beside the exit everyone uses: the case that costs lives in real fires
+  const main = exits[0] ? [fx(exits[0].pt[0]), fy(exits[0].pt[1])] : [0.5, 0.5]
+  const fire = [...semRooms].sort((a, b) => Math.hypot(a.x + a.w / 2 - main[0], a.y + a.h / 2 - main[1]) - Math.hypot(b.x + b.w / 2 - main[0], b.y + b.h / 2 - main[1]))[0]
 
   const f = (v: number) => v.toFixed(1)
   const svg = [
@@ -247,8 +249,8 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
     semantics: {
       title: '',
       rooms: semRooms,
-      exits: exits.map((e, i) => ({ name: exitNames[i], x: fx(e.pt[0]), y: fy(e.pt[1]) })),
-      fireRisk: fire ? { room: fire.name, x: fire.x + fire.w / 2, y: fire.y + fire.h / 2, reason: 'likeliest ignition source on this floor' } : null,
+      exits: exits.map((e, i) => ({ name: exitNames[i], x: fx(e.pt[0]), y: fy(e.pt[1]), familiar: i === 0 })),
+      fireRisk: fire ? { room: fire.name, x: fire.x + fire.w / 2, y: fire.y + fire.h / 2, reason: `right beside ${exitNames[0]}, the exit everyone uses` } : null,
       notes: [],
     },
   }

@@ -1,9 +1,13 @@
 import { OFFICE_LAYOUT } from './layout'
 import type { ExitId, LayoutDef, Strategy, ZoneId } from './types'
 
-/** Occupants self-evacuate: nearest-familiar exit, fire doors underused (documented in egress studies), no live guidance. */
+/**
+ * Today's procedure: an alarm bell, no live guidance. People head for the exit they know (documented in egress studies);
+ * when the plan names the everyday exit every other one is avoided, otherwise fire doors are underused.
+ */
 export function baselineFor(layout: LayoutDef = OFFICE_LAYOUT): Strategy {
-  return { ...BASELINE_STRATEGY, exitBias: Object.fromEntries(layout.exits.filter(e => e.fireDoor).map(e => [e.id, 1.8])) }
+  const known = layout.exits.some(e => e.familiar)
+  return { ...BASELINE_STRATEGY, exitBias: Object.fromEntries(layout.exits.filter(e => (known ? !e.familiar : e.fireDoor)).map(e => [e.id, 1.8])) }
 }
 
 export const BASELINE_STRATEGY: Strategy = {
@@ -41,6 +45,7 @@ export function sanitizeStrategy(raw: Partial<Record<keyof Strategy, unknown>> |
     exitBias,
     zoneAssignments,
     zoneDelays,
+    voiceAlert: clamp(r.voiceAlert, 0, 1, 0),
     hazardAversion: clamp(r.hazardAversion, 0, 10, 3),
     congestionAwareness: clamp(r.congestionAwareness, 0, 1, 0.5),
     reassessInterval: clamp(r.reassessInterval, 1, 60, 5),

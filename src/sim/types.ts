@@ -23,7 +23,7 @@ export interface Zone {
 
 export interface Ignition { cell: Cell; t: number }
 
-export interface ExitDef { id: ExitId; name: string; cells: Cell[]; fireDoor: boolean }
+export interface ExitDef { id: ExitId; name: string; cells: Cell[]; fireDoor: boolean; /** the exit people use every day */ familiar?: boolean }
 export interface ZoneDef {
   id: ZoneId
   name: string
@@ -60,6 +60,8 @@ export interface Scenario {
   occupancy: Partial<Record<ZoneId, number>>
   fireSpreadPerSec: number
   smokeYield: number
+  /** smoke-seconds of exposure that overcome a person (default INCAPACITATION) */
+  incapacitation?: number
   seed: number
   tMax: number
 }
@@ -91,6 +93,8 @@ export interface Strategy {
   zoneAssignments: Partial<Record<ZoneId, ExitId | null>>
   /** staged release, seconds after alarm */
   zoneDelays: Partial<Record<ZoneId, number>>
+  /** voice evacuation message + floor wardens (0 = alarm bell only, 1 = full): shortens the delay before people start moving */
+  voiceAlert?: number
   /** how strongly routes avoid smoke (0..10) */
   hazardAversion: number
   /** how strongly people avoid queues via live guidance (0..1) */

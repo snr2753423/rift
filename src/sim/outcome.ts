@@ -1,4 +1,4 @@
-import { AgentState, INCAPACITATION, type Simulation } from './simulation'
+import { AgentState, type Simulation } from './simulation'
 
 /** What a drill means for the people in the building, from a finished (or running) simulation. */
 export interface Outcome {
@@ -21,7 +21,7 @@ export function outcomeOf(sim: Simulation): Outcome {
   let injured = 0, crush = 0
   for (let i = 0; i < sim.n; i++) {
     crush += sim.crushTime[i]
-    if (sim.state[i] === AgentState.Exited && sim.exposure[i] >= INCAPACITATION * 0.4) injured++
+    if (sim.state[i] === AgentState.Exited && sim.exposure[i] >= sim.dose * 0.4) injured++
   }
   const need = Math.ceil(sim.n * 0.9)
   const k = sim.curve.findIndex(v => v >= need)
@@ -63,7 +63,7 @@ export function youIn(sim: Simulation, i: number): You {
     exit,
     heading,
     crush: sim.crushTime[i],
-    smoke: sim.exposure[i] / INCAPACITATION,
+    smoke: sim.exposure[i] / sim.dose,
   }
 }
 

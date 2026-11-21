@@ -7,7 +7,8 @@ export { VOID, findContentBox, rasterToGrid, segmentPlan, type Box, type GridRes
 export interface Semantics {
   title: string
   rooms: { name: string; x: number; y: number; w: number; h: number; occupants?: number }[]
-  exits: { name: string; x: number; y: number }[]
+  /** familiar: the exit people use every day (our own generated plans) */
+  exits: { name: string; x: number; y: number; familiar?: boolean }[]
   fireRisk: { room: string; x: number; y: number; reason: string } | null
   notes: string[]
 }
@@ -175,7 +176,7 @@ export function buildImportedScenario(grid: GridResult, sem: Semantics | null, o
     if (near) m.matched = true
     if (!near && opts.exactExits) { for (const [x, y] of cells) solid[y * W + x] = 1; return }
     const name = near ? m.name : `Exit ${i + 1}`
-    exits.push({ id: mkId(name, i), name, cells, fireDoor: /fire|emerg/i.test(name) })
+    exits.push({ id: mkId(name, i), name, cells, fireDoor: /fire|emerg/i.test(name), ...(near && m.familiar ? { familiar: true } : {}) })
   })
   if (exits.length) notes.push(`${exits.length} exit${exits.length > 1 ? 's' : ''} found as gaps in the outer wall of the drawing.`)
   for (const e of semExits.filter(x => !x.matched)) {

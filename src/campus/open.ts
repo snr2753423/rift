@@ -11,8 +11,8 @@ export async function openFloor(spot: Spot, floor: number, onSteps: (s: Step[]) 
   const source = floor === 1
     ? `Footprint from OpenStreetMap; ${plan.mappedExits} of ${plan.exitCount} exits at mapped entrances.`
     : `Footprint from OpenStreetMap; floor ${floor} exits are stairwells.`
-  // campus drills model a serious fire: faster spread and thicker smoke than the demo office
-  const scenario = { ...r.scenario, fireSpreadPerSec: 0.09, smokeYield: 1.6 }
+  // campus drills model a serious fire beside the everyday exit: faster spread and thicker, more toxic smoke than the demo office
+  const scenario = { ...r.scenario, fireSpreadPerSec: 0.22, smokeYield: 3.2, incapacitation: 24 }
   const s = useRift.getState()
   s.loadCustom(scenario, { ...r.info, notes: [`${source} The interior layout is schematic, not the real floor plan.`, ...r.info.notes] })
   s.set({ building: spot.name, floor, floors: floorsFor(spot.height) })

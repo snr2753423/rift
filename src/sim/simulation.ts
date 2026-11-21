@@ -2,7 +2,7 @@ import { HazardField } from './hazards'
 import { CELL, areaName, buildWorld } from './layout'
 import { distanceField } from './navigation'
 import { mulberry32 } from './rng'
-import type { Hotspot, Metrics, Modification, Scenario, Strategy, World } from './types'
+import type { Cell, Hotspot, Metrics, Modification, Scenario, Strategy, World } from './types'
 
 export const DT = 0.1
 const CROWD_DENSITY = 2.5 // persons/m² — above this, flow degrades sharply (Fruin LoS E/F)
@@ -73,13 +73,19 @@ export class Simulation {
     this.egress = new Float32Array(n); this.nextReassess = new Float32Array(n)
     this.exitedVia = new Int8Array(n).fill(-1); this.crushTime = new Float32Array(n)
     let a = 0
+    // nobody starts the drill standing in the fire itself
+    const lit = [...scenario.ignitions, ...w.extraIgnitions].filter(ig => ig.t <= 0).map(ig => ig.cell)
+    const clear = (c: Cell) => lit.every(([x, y]) => Math.max(Math.abs(c[0] - x), Math.abs(c[1] - y)) > 2)
     w.zones.forEach((z, zi) => {
+      const safe = z.spawn.filter(clear)
+      const spawn = safe.length ? safe : z.spawn
       for (let k = 0; k < z.occupants; k++, a++) {
-        const [cx, cy] = z.spawn[Math.floor(pop() * z.spawn.length)]
+        const [cx, cy] = spawn[Math.floor(pop() * spawn.length)]
         this.px[a] = cx + 0.2 + pop() * 0.6
         this.py[a] = cy + 0.2 + pop() * 0.6
         this.vmax[a] = (1.15 + pop() * 0.4) / CELL // m/s -> cells/s
-        this.start[a] = 4 + pop() * 14 + (strategy.zoneDelays[z.id] ?? 0)
+        // pre-movement: 4–18 s with a plain bell; a directed voice message and wardens cut it by up to 60%
+        this.start[a] = (4 + pop() * 14) * (1 - 0.6 * (strategy.voiceAlert ?? 0)) + (strategy.zoneDelays[z.id] ?? 0)
         this.zone[a] = zi
       }
     })
@@ -96,6 +102,9 @@ export class Simulation {
     w.exits.forEach((e, ei) => { if (!e.blocked) for (const [x, y] of e.cells) this.exitOfCell[y * w.width + x] = ei })
     this.refreshFields()
   }
+
+  /** smoke dose that overcomes a person in this scenario */
+  get dose() { return this.scenario.incapacitation ?? INCAPACITATION }
 
   get done() { return this.evacuated + this.incapacitated >= this.n || this.t >= this.scenario.tMax }
 
@@ -174,7 +183,7 @@ export class Simulation {
       this.exposure[i] += sm * dt
       if (this.density[ci] > CROWD_DENSITY) this.crushTime[i] += dt
       this.totalExposure += sm * dt
-      if (fire[ci] > 0.4 || this.exposure[i] > INCAPACITATION) { this.state[i] = AgentState.Incapacitated; this.incapacitated++; continue }
+      if (fire[ci] > 0.4 || this.exposure[i] > this.dose) { this.state[i] = AgentState.Incapacitated; this.incapacitated++; continue }
       if (this.t < this.start[i]) continue
       if (st === AgentState.Waiting) this.state[i] = AgentState.Moving
 

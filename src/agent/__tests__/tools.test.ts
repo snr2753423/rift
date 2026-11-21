@@ -47,6 +47,21 @@ describe('agent tools', () => {
     expect(r).toEqual({ ok: true, committed: 'R1' })
     expect(c.committed).not.toBeNull()
   })
+  it('refuses a run that does not lower casualties when people were lost', async () => {
+    const lossy = { ...baseline, incapacitated: 3 }
+    const c = { ...ctx(), baseline: lossy }
+    // a run that is faster on paper but loses the same 3 people must not be committed
+    c.runs.set('R1', { id: 'R1', strategy: {} as never, metrics: { ...baseline, incapacitated: 3, t90: baseline.t90 - 20 }, ms: 1 })
+    const r = await executeTool('commit_strategy', JSON.stringify({ run_id: 'R1', headline: 'h', rationale: 'r', key_changes: [] }), c) as Record<string, unknown>
+    expect(String(r.error)).toMatch(/casualt/i)
+    c.runs.set('R2', { id: 'R2', strategy: {} as never, metrics: { ...baseline, incapacitated: 1 }, ms: 1 })
+    expect(await executeTool('commit_strategy', JSON.stringify({ run_id: 'R2', headline: 'h', rationale: 'r', key_changes: [] }), c)).toEqual({ ok: true, committed: 'R2' })
+  })
+  it('run_simulation accepts the voice alert lever', async () => {
+    const c = ctx()
+    const r = await executeTool('run_simulation', JSON.stringify({ name: 'v', voiceAlert: 1 }), c) as Record<string, unknown>
+    expect((r.applied_strategy as Record<string, unknown>).voiceAlert).toBe(1)
+  })
   it('enforces the simulation budget', async () => {
     const c = { ...ctx(), maxRuns: 1 }
     await executeTool('run_simulation', JSON.stringify({ name: 'a' }), c)
