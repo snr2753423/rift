@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import type { OrbitControls as OrbitImpl } from 'three-stdlib'
 import { CELL } from '../sim/layout'
 import type { Simulation } from '../sim/simulation'
+import { personInZone, zoneAt } from '../sim/outcome'
 import { useRift } from '../state/store'
 import { toCell } from './coords'
 import { Crowd } from './Crowd'
@@ -13,6 +14,7 @@ import { Fire, HeatmapLayer, Smoke } from './Hazards'
 import { modFromClick } from './mods'
 import { Routes } from './Routes'
 import { Structure } from './Structure'
+import { YouMarker } from './You'
 
 const PRESETS = {
   iso: new THREE.Vector3(0, 25, 23),
@@ -27,7 +29,11 @@ const COMPACT = {
 }
 const presetFor = (p: keyof typeof PRESETS, compact: boolean) => (compact ? COMPACT : PRESETS)[p]
 
-function CameraRig({ compact }: { compact: boolean }) {
+const INTRO_FROM = new THREE.Vector3(0, 44, 0.01) // straight down, long axis across the screen, as the campus close-up left it
+const INTRO_MS = 2400
+
+/** Eases to the camera preset. After a campus hand-off it holds overhead until the crossfade starts, then keeps descending. */
+function CameraRig({ compact, intro }: { compact: boolean; intro: boolean }) {
   const preset = useRift(s => s.cameraPreset)
   const camera = useThree(s => s.camera)
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
@@ -35,9 +41,12 @@ function CameraRig({ compact }: { compact: boolean }) {
   useEffect(() => {
     target.current.copy(presetFor(preset, compact))
     const from = camera.position.clone()
-    let k = 0, raf = 0
-    const tick = () => {
-      k = Math.min(1, k + 0.035)
+    let raf = 0, t0 = 0
+    const tick = (now: number) => {
+      const startAt = intro ? useRift.getState().enteredAt : 0
+      if (intro && now < startAt) { raf = requestAnimationFrame(tick); return }
+      t0 ||= now
+      const k = Math.min(1, (now - t0) / (intro ? INTRO_MS : 600))
       const e = 1 - Math.pow(1 - k, 3)
       camera.position.lerpVectors(from, target.current, e)
       controls?.target.set(0, 0, 0)
@@ -46,7 +55,7 @@ function CameraRig({ compact }: { compact: boolean }) {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [preset, camera, controls, compact])
+  }, [preset, camera, controls, compact, intro])
   return null
 }
 
@@ -54,10 +63,20 @@ function PickPlane({ sim }: { sim: Simulation }) {
   const tool = useRift(s => s.tool)
   const addMod = useRift(s => s.addMod)
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (tool === 'orbit' || e.delta > 5) return
-    e.stopPropagation()
+    if (e.delta > 5) return
     const local = e.eventObject.parent ? e.eventObject.parent.worldToLocal(e.point.clone()) : e.point
-    const m = modFromClick(tool, toCell(local.x, local.z), sim.world)
+    const cell = toCell(local.x, local.z)
+    const s = useRift.getState()
+    if (tool === 'orbit') {
+      // before the alarm, a click on the floor puts "you" there
+      if (s.drill !== 'pick' && s.drill !== 'ready') return
+      const zi = zoneAt(sim, cell)
+      const who = zi >= 0 ? personInZone(sim, zi, cell) : -1
+      if (who >= 0) { e.stopPropagation(); s.set({ you: who, youRoom: sim.world.zones[zi].name, drill: 'ready' }) }
+      return
+    }
+    e.stopPropagation()
+    const m = modFromClick(tool, cell, sim.world)
     if (m) addMod(m)
   }
   return (
@@ -68,7 +87,7 @@ function PickPlane({ sim }: { sim: Simulation }) {
   )
 }
 
-export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Simulation; routeColor: string; crowdTint?: string; compact?: boolean }) {
+export function Twin({ sim, routeColor, crowdTint, compact = false, intro = false }: { sim: Simulation; routeColor: string; crowdTint?: string; compact?: boolean; intro?: boolean }) {
   const heatmap = useRift(s => s.heatmap)
   const showRoutes = useRift(s => s.showRoutes)
   const tool = useRift(s => s.tool)
@@ -76,7 +95,7 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
     <Canvas
       shadows={false}
       dpr={[1, 1.25]}
-      camera={{ position: presetFor('iso', compact).clone(), fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: (intro ? INTRO_FROM : presetFor('iso', compact)).clone(), fov: 42, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ cursor: tool === 'orbit' ? 'grab' : 'crosshair' }}
     >
@@ -90,12 +109,13 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
         <HeatmapLayer sim={sim} mode={heatmap} />
         {showRoutes && <Routes sim={sim} color={routeColor} />}
         <Crowd sim={sim} tint={crowdTint} />
+        <YouMarker sim={sim} />
         <Fire sim={sim} />
         <Smoke sim={sim} />
         <PickPlane sim={sim} />
       </group>
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={1.38} minDistance={10} maxDistance={70} />
-      <CameraRig compact={compact} />
+      <CameraRig compact={compact} intro={intro} />
       <EffectComposer multisampling={0}>
         <Bloom luminanceThreshold={0.8} luminanceSmoothing={0.2} intensity={0.6} mipmapBlur />
         <Vignette eskil={false} offset={0.2} darkness={0.5} />

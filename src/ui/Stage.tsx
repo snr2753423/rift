@@ -3,6 +3,8 @@ import type { Simulation } from '../sim/simulation'
 import { live, useTicker } from '../state/live'
 import { useRift } from '../state/store'
 import { fmtTime } from './format'
+import { DrillCard } from './DrillCard'
+import { NemotronPill } from './NemotronPill'
 import { Toolbar } from './Toolbar'
 
 function Hud({ sim, label, variant }: { sim: Simulation; label: string; variant: 'base' | 'ai' }) {
@@ -31,15 +33,16 @@ export function Stage() {
   useRift(s => s.simGen)
   const decision = useRift(s => s.decision)
   const status = useRift(s => s.agentStatus)
+  const enteredAt = useRift(s => s.enteredAt)
   const base = live.baseline, ai = live.ai
   if (!base) return <main className="stage" />
   const compare = Boolean(decision && ai)
-  const aiLabel = `${decision?.provider === 'fallback' ? 'Fallback plan' : 'Nemotron plan'}${status === 'running' ? ' · replanning' : ''}`
+  const aiLabel = `${decision?.provider === 'fallback' ? 'Offline fallback plan' : "Nemotron's plan"}${status === 'running' ? ' · replanning' : ''}`
   return (
     <main className={`stage ${compare ? 'compare' : ''}`}>
       <div className="view">
-        <Twin key={`b-${base.scenario.id}-${base.world.zones.length}-${compare}`} sim={base} routeColor="#a1a1aa" compact={compare} />
-        <Hud sim={base} label={compare ? 'Baseline' : 'Live twin'} variant="base" />
+        <Twin key={`b-${base.scenario.id}-${base.world.zones.length}-${compare}`} sim={base} routeColor="#a1a1aa" compact={compare} intro={!compare && enteredAt > 0 && performance.now() - enteredAt < 3000} />
+        <Hud sim={base} label={compare ? "Today's procedure" : 'Live drill'} variant="base" />
       </div>
       {compare && ai && (
         <div className="view ai">
@@ -47,6 +50,8 @@ export function Stage() {
           <Hud sim={ai} label={aiLabel} variant="ai" />
         </div>
       )}
+      <DrillCard />
+      <NemotronPill />
       <Toolbar />
     </main>
   )

@@ -32,7 +32,8 @@ export function startDriver() {
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
     last = now
     const finished = (live.baseline?.done ?? true) && (live.ai?.done ?? true)
-    if (finished && s.playing) {
+    if (finished && s.playing && s.drill === 'running') useRift.setState({ playing: false, drill: 'done' })
+    else if (finished && s.playing) {
       holdUntil ||= now + 3500
       if (now > holdUntil) { holdUntil = 0; rebuild() } // auto-replay keeps the twin alive between runs
     }

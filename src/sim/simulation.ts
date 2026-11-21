@@ -6,7 +6,7 @@ import type { Hotspot, Metrics, Modification, Scenario, Strategy, World } from '
 
 export const DT = 0.1
 const CROWD_DENSITY = 2.5 // persons/m² — above this, flow degrades sharply (Fruin LoS E/F)
-const INCAPACITATION = 45 // smoke-seconds of exposure (simplified dose model)
+export const INCAPACITATION = 45 // smoke-seconds of exposure (simplified dose model)
 const FIELD_REFRESH = 1.0
 const CELL_AREA = CELL * CELL
 
@@ -31,6 +31,9 @@ export class Simulation {
   readonly state: Uint8Array
   readonly exitIdx: Int8Array
   readonly exposure: Float32Array
+  /** per person: exit used (−1 until out), seconds spent in a crush (> crowd density) */
+  readonly exitedVia: Int8Array
+  readonly crushTime: Float32Array
   readonly density: Float32Array
   readonly congestion: Float32Array
   readonly exitCount: number[]
@@ -44,8 +47,8 @@ export class Simulation {
   totalExposure = 0
   private vmax: Float32Array
   private start: Float32Array
-  private zone: Uint8Array
-  private egress: Float32Array
+  readonly zone: Uint8Array
+  readonly egress: Float32Array
   private nextReassess: Float32Array
   fields: (Float32Array | null)[] = []
   private fieldTimer = 0
@@ -68,6 +71,7 @@ export class Simulation {
     this.exposure = new Float32Array(n); this.vmax = new Float32Array(n)
     this.start = new Float32Array(n); this.zone = new Uint8Array(n)
     this.egress = new Float32Array(n); this.nextReassess = new Float32Array(n)
+    this.exitedVia = new Int8Array(n).fill(-1); this.crushTime = new Float32Array(n)
     let a = 0
     w.zones.forEach((z, zi) => {
       for (let k = 0; k < z.occupants; k++, a++) {
@@ -168,6 +172,7 @@ export class Simulation {
       let ci = (y | 0) * W + (x | 0)
       const sm = smoke[ci]
       this.exposure[i] += sm * dt
+      if (this.density[ci] > CROWD_DENSITY) this.crushTime[i] += dt
       this.totalExposure += sm * dt
       if (fire[ci] > 0.4 || this.exposure[i] > INCAPACITATION) { this.state[i] = AgentState.Incapacitated; this.incapacitated++; continue }
       if (this.t < this.start[i]) continue
@@ -233,6 +238,7 @@ export class Simulation {
           this.tokens[exitHere] -= 1
           this.state[i] = AgentState.Exited
           this.egress[i] = this.t
+          this.exitedVia[i] = exitHere
           this.exitCount[exitHere]++
           this.evacuated++
           this.px[i] = nx; this.py[i] = ny

@@ -108,25 +108,26 @@ export function AgentPanel() {
     <aside className="agent">
       <header className="agent-head">
         <div>
-          <h2>Nemotron agent</h2>
+          <span className="nv-tag">Powered by NVIDIA Nemotron</span>
+          <h2>Safety planner</h2>
           <p className="sub mono">{MODEL}</p>
         </div>
       </header>
       <div className="agent-action">
         {running
           ? <button className="btn block" onClick={cancelAgent}>Stop agent</button>
-          : <button className="btn primary block" disabled={!baseline} onClick={() => engageAgent()}>{decision ? 'Re-optimise' : 'Optimise evacuation'}</button>}
+          : <button className="btn nvidia block" disabled={!baseline} onClick={() => engageAgent()}>{decision ? 'Plan again' : 'Find a better plan'}</button>}
         {events.length > 0 && (
           <div className="agent-stats num"><span>{calls} tool calls</span><span>{runs.length} simulations</span><span>{(tokens / 1000).toFixed(1)}k tokens</span></div>
         )}
       </div>
       {events.length === 0 ? (
         <div className="agent-empty">
-          <p>Nemotron plans the evacuation by running real simulations, not by guessing.</p>
+          <p>Today's procedure is "go to the exit you know". Nemotron tries to do better by running real simulations of this floor, not by guessing.</p>
           <ol>
-            <li><div>Inspects the twin<span>Exits, zones, fire and crowd</span></div></li>
-            <li><div>Tests strategies in parallel<span>Each one is a full simulation run</span></div></li>
-            <li><div>Commits the best plan<span>Only if it beats the baseline</span></div></li>
+            <li><div>Studies the floor<span>Exits, rooms, the fire and where people are</span></div></li>
+            <li><div>Tests plans in parallel<span>Each one is a full evacuation simulation</span></div></li>
+            <li><div>Keeps the safest plan<span>Only if it beats today's procedure</span></div></li>
           </ol>
         </div>
       ) : (

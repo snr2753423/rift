@@ -1,16 +1,12 @@
 // Server-side proxy: the NVIDIA key never reaches the browser.
-const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
-const MAX_BODY = 2_000_000 // room for a base64 floor-plan crop
+import { MAX_BODY, NVIDIA_URL, buildUpstream, modelsFor } from './upstream.mjs'
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 const hostname = h => { try { return new URL(`http://${h}`).hostname } catch { return '' } }
 const WINDOW_MS = 60_000
 const MAX_PER_WINDOW = 40
 let windowStart = Date.now()
 let count = 0
-
-function allowedModels(env) {
-  return new Set([env.NVIDIA_MODEL, env.NVIDIA_FALLBACK_MODEL].filter(Boolean))
-}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -34,7 +30,7 @@ function send(res, status, payload) {
 export function createNemotronHandler(env) {
   return async function handle(req, res) {
     if (req.method === 'GET') {
-      return send(res, 200, { success: true, data: { configured: Boolean(env.NVIDIA_API_KEY), model: env.NVIDIA_MODEL ?? null, fallbackModel: env.NVIDIA_FALLBACK_MODEL ?? null }, error: null })
+      return send(res, 200, { success: true, data: { configured: Boolean(env.NVIDIA_API_KEY), model: modelsFor(env).model, fallbackModel: modelsFor(env).fallback }, error: null })
     }
     if (req.method !== 'POST') return send(res, 405, { success: false, data: null, error: 'method not allowed' })
     if (!String(req.headers['content-type'] ?? '').includes('application/json')) return send(res, 415, { success: false, data: null, error: 'content-type must be application/json' })
@@ -50,25 +46,10 @@ export function createNemotronHandler(env) {
     if (++count > MAX_PER_WINDOW) return send(res, 429, { success: false, data: null, error: 'rate limited' })
     let body
     try { body = JSON.parse(await readBody(req)) } catch { return send(res, 400, { success: false, data: null, error: 'invalid JSON body' }) }
-    const models = allowedModels(env)
-    const model = models.has(body?.model) ? body.model : env.NVIDIA_MODEL
-    if (!Array.isArray(body?.messages) || body.messages.length === 0 || body.messages.length > 80) {
-      return send(res, 400, { success: false, data: null, error: 'messages must be a non-empty array (max 80)' })
-    }
-    const upstream = {
-      model,
-      messages: body.messages,
-      tools: Array.isArray(body.tools) && body.tools.length <= 16 ? body.tools : undefined,
-      tool_choice: body.tools ? 'auto' : undefined,
-      temperature: typeof body.temperature === 'number' ? Math.min(1, Math.max(0, body.temperature)) : 0.3,
-      top_p: 0.95,
-      seed: Number.isInteger(body.seed) ? body.seed : undefined,
-      max_tokens: Math.min(Math.max(Number(body.max_tokens) || 4096, 256), 8192),
-      chat_template_kwargs: body.thinking === false
-        ? { enable_thinking: false }
-        : { enable_thinking: true, reasoning_budget: Math.min(4096, Math.max(128, Number(body.reasoning_budget) || 1200)) },
-      stream: body.stream === true,
-    }
+    const built = buildUpstream(body, env)
+    if (built.error) return send(res, 400, { success: false, data: null, error: built.error })
+    const { upstream } = built
+    const model = upstream.model
     const started = Date.now()
     const ac = new AbortController()
     const onClose = () => { if (!res.writableEnded) ac.abort() }

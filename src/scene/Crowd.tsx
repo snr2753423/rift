@@ -13,6 +13,7 @@ const HURT = new THREE.Color('#f0524f').multiplyScalar(1.4)
 
 export function Crowd({ sim, tint }: { sim: Simulation; tint?: string }) {
   const ref = useRef<THREE.InstancedMesh>(null)
+  const head = useRef<THREE.InstancedMesh>(null)
   const calm = tint ? new THREE.Color(tint).multiplyScalar(0.95) : CALM
   useFrame(({ clock }) => {
     const mesh = ref.current
@@ -29,6 +30,7 @@ export function Crowd({ sim, tint }: { sim: Simulation; tint?: string }) {
       }
       o.updateMatrix()
       mesh.setMatrixAt(i, o.matrix)
+      head.current?.setMatrixAt(i, o.matrix)
       if (st === AgentState.Incapacitated) c.copy(HURT)
       else if (st === AgentState.Waiting) c.copy(WAIT)
       else {
@@ -37,14 +39,23 @@ export function Crowd({ sim, tint }: { sim: Simulation; tint?: string }) {
         if (k > 0.6) c.lerp(HURT, (k - 0.6) / 0.4)
       }
       mesh.setColorAt(i, c)
+      head.current?.setColorAt(i, c)
     }
     mesh.instanceMatrix.needsUpdate = true
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    if (head.current) { head.current.instanceMatrix.needsUpdate = true; if (head.current.instanceColor) head.current.instanceColor.needsUpdate = true }
   })
+  // a body and a head per person, sharing one transform
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, sim.n]} key={sim.n} frustumCulled={false}>
-      <capsuleGeometry args={[0.14, 0.5, 4, 10]} />
-      <meshBasicMaterial toneMapped={false} />
-    </instancedMesh>
+    <group key={sim.n}>
+      <instancedMesh ref={ref} args={[undefined, undefined, sim.n]} frustumCulled={false}>
+        <capsuleGeometry args={[0.15, 0.4, 4, 10]} />
+        <meshStandardMaterial roughness={0.6} emissiveIntensity={0.25} />
+      </instancedMesh>
+      <instancedMesh ref={head} args={[undefined, undefined, sim.n]} frustumCulled={false}>
+        <sphereGeometry args={[0.12, 12, 10]} onUpdate={g => g.translate(0, 0.52, 0)} />
+        <meshStandardMaterial roughness={0.5} />
+      </instancedMesh>
+    </group>
   )
 }
