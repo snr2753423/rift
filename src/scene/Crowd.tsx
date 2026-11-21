@@ -6,10 +6,10 @@ import { gx, gz } from './coords'
 
 const o = new THREE.Object3D()
 const c = new THREE.Color()
-const CALM = new THREE.Color('#8ff7ff').multiplyScalar(0.95)
-const WAIT = new THREE.Color('#9fb0c4')
-const WARN = new THREE.Color('#ffb547').multiplyScalar(1.4)
-const HURT = new THREE.Color('#ff3b4e').multiplyScalar(1.6)
+const CALM = new THREE.Color('#e9e4d8')
+const WAIT = new THREE.Color('#6b6e76')
+const WARN = new THREE.Color('#f5a524').multiplyScalar(1.2)
+const HURT = new THREE.Color('#f0524f').multiplyScalar(1.4)
 
 export function Crowd({ sim, tint }: { sim: Simulation; tint?: string }) {
   const ref = useRef<THREE.InstancedMesh>(null)

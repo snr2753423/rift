@@ -64,7 +64,7 @@ export const useRift = create<State>((set) => ({
   playing: true,
   speed: 3,
   tool: 'orbit',
-  heatmap: 'danger',
+  heatmap: 'off',
   showRoutes: true,
   baseline: null,
   baselineBusy: false,

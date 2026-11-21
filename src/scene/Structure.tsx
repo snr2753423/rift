@@ -52,26 +52,26 @@ function ExitLabel({ sim, index, y }: { sim: Simulation; index: number; y: numbe
     if (n === last.current) return
     last.current = n
     const g = canvas.getContext('2d')!
-    const accent = e.blocked ? '#ff4d5e' : '#3ddc84'
+    const accent = e.blocked ? '#f0524f' : '#ededef'
     g.clearRect(0, 0, 512, 112)
-    g.fillStyle = 'rgba(5,10,8,0.86)'
+    g.fillStyle = 'rgba(17,17,19,0.9)'
     g.strokeStyle = accent
-    g.lineWidth = 4
+    g.lineWidth = 2
     g.beginPath(); g.roundRect(4, 4, 504, 104, 18); g.fill(); g.stroke()
     const value = e.blocked ? 'BLOCKED' : String(n)
-    g.font = '600 44px "IBM Plex Mono", ui-monospace, monospace'
+    g.font = '600 44px "JetBrains Mono", ui-monospace, monospace'
     const valueW = g.measureText(value).width
     // shrink the name to fit beside the counter, never overlapping it
     const room = 488 - valueW - 24 - 26
     let size = 40
-    g.font = `500 ${size}px "IBM Plex Mono", ui-monospace, monospace`
-    while (size > 22 && g.measureText(e.name).width > room) { size -= 2; g.font = `500 ${size}px "IBM Plex Mono", ui-monospace, monospace` }
+    g.font = `500 ${size}px "JetBrains Mono", ui-monospace, monospace`
+    while (size > 22 && g.measureText(e.name).width > room) { size -= 2; g.font = `500 ${size}px "JetBrains Mono", ui-monospace, monospace` }
     let label = e.name
     while (label.length > 3 && g.measureText(label).width > room) label = `${label.slice(0, -2)}…`
-    g.fillStyle = e.blocked ? '#ffc2c8' : '#cff7df'
+    g.fillStyle = e.blocked ? '#f0524f' : '#8b8d93'
     g.textBaseline = 'middle'
     g.fillText(label, 26, 57)
-    g.font = '600 44px "IBM Plex Mono", ui-monospace, monospace'
+    g.font = '600 44px "JetBrains Mono", ui-monospace, monospace'
     g.fillStyle = accent
     g.textAlign = 'right'
     g.fillText(value, 488, 57)
@@ -91,12 +91,12 @@ function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
   const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, cy = (Math.min(...ys) + Math.max(...ys) + 1) / 2
   const horizontal = new Set(ys).size === 1
   const len = e.cells.length * CELL
-  const color = e.blocked ? '#ff4d5e' : '#3ddc84'
+  const color = e.blocked ? '#f0524f' : '#ededef'
   return (
     <group position={[gx(cx), 0, gz(cy)]}>
       <mesh position={[0, 1.4, 0]}>
         <boxGeometry args={horizontal ? [len, 2.8, 0.06] : [0.06, 2.8, len]} />
-        <meshBasicMaterial color={color} transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        <meshBasicMaterial color={color} transparent opacity={0.08} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh position={[0, 0.03, 0]}>
         <boxGeometry args={horizontal ? [len, 0.05, 0.5] : [0.5, 0.05, len]} />
@@ -115,9 +115,9 @@ function Floor({ world }: { world: World }) {
     const g = c.getContext('2d')!
     for (let y = 0; y < world.height; y++) for (let x = 0; x < world.width; x++) {
       if (world.solid[y * world.width + x] === VOID) continue
-      g.fillStyle = (x % 5 === 0 || y % 5 === 0) ? '#1f3a4d' : '#16202b'
+      g.fillStyle = (x % 5 === 0 || y % 5 === 0) ? '#22242a' : '#18191d'
       g.fillRect(x * S, y * S, S, S)
-      g.fillStyle = '#0b1016'
+      g.fillStyle = '#111215'
       g.fillRect(x * S + (x % 5 === 0 ? 1.5 : 1), y * S + (y % 5 === 0 ? 1.5 : 1), S - 1, S - 1)
     }
     const t = new THREE.CanvasTexture(c)
@@ -144,12 +144,12 @@ export function Structure({ sim }: { sim: Simulation }) {
     <group>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]}>
         <planeGeometry args={[width + 14, depth + 14]} />
-        <meshStandardMaterial color="#06080b" roughness={1} />
+        <meshStandardMaterial color="#0a0a0b" roughness={1} />
       </mesh>
       <Floor world={world} />
-      <Blocks cells={walls} h={WALL_H} color="#18212c" />
-      <Blocks cells={walls} h={0.02} y={WALL_H} color="#6fe3ff" emissive="#3fbfe6" emissiveIntensity={0.75} />
-      <Blocks cells={furniture} h={0.42} color="#263241" />
+      <Blocks cells={walls} h={WALL_H} color="#1b1c20" />
+      <Blocks cells={walls} h={0.02} y={WALL_H} color="#6b6e76" emissive="#8b8d93" emissiveIntensity={0.12} />
+      <Blocks cells={furniture} h={0.42} color="#1c1d21" />
       <Blocks cells={debris} h={0.9} color="#ff8a3d" emissive="#ff6a00" emissiveIntensity={0.5} />
       {world.exits.map((_, i) => <ExitMarker key={i} sim={sim} index={i} />)}
     </group>

@@ -80,11 +80,11 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ cursor: tool === 'orbit' ? 'grab' : 'crosshair' }}
     >
-      <color attach="background" args={['#05070a']} />
-      <fog attach="fog" args={['#05070a', 38, 85]} />
+      <color attach="background" args={['#0a0a0b']} />
+      <fog attach="fog" args={['#0a0a0b', 38, 85]} />
       <ambientLight intensity={0.35} />
-      <hemisphereLight args={['#9fd8ff', '#0a0d12', 0.55]} />
-      <directionalLight position={[10, 20, 8]} intensity={0.9} color="#cfe8ff" />
+      <hemisphereLight args={['#e8eaf0', '#0a0a0b', 0.5]} />
+      <directionalLight position={[10, 20, 8]} intensity={0.9} color="#ffffff" />
       <group rotation-y={compact ? Math.PI / 2 : 0}>
         <Structure sim={sim} />
         <HeatmapLayer sim={sim} mode={heatmap} />
@@ -97,8 +97,8 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={1.38} minDistance={10} maxDistance={70} />
       <CameraRig compact={compact} />
       <EffectComposer multisampling={0}>
-        <Bloom luminanceThreshold={0.62} luminanceSmoothing={0.2} intensity={1.15} mipmapBlur />
-        <Vignette eskil={false} offset={0.2} darkness={0.75} />
+        <Bloom luminanceThreshold={0.8} luminanceSmoothing={0.2} intensity={0.6} mipmapBlur />
+        <Vignette eskil={false} offset={0.2} darkness={0.5} />
       </EffectComposer>
     </Canvas>
   )
