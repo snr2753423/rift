@@ -122,7 +122,8 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
   const poly = raw.map(toPx)
   const B = bbox(poly)
   const cell = Math.max(B.w / FIT_W, B.h / FIT_H) // pixels per simulation cell
-  const wall = Math.max(6, cell * 0.6), exitGap = cell * 3.4, doorGap = cell * 1.8, half = cell * 2.2, roomW = cell * (9 + ROOM_STEP[(floor - 1) % ROOM_STEP.length])
+  // walls are drawn with square caps, which eat wall/2 into each side of every gap: cut gaps that much wider
+  const wall = Math.max(6, cell * 0.6), exitGap = cell * 3.4 + wall, doorGap = cell * 2.6 + wall, half = cell * 2.2, roomW = cell * (9 + ROOM_STEP[(floor - 1) % ROOM_STEP.length])
 
   // --- exits: mapped entrances first, then midpoints of the longest walls, spread apart
   const edges = poly.map((p, i) => ({ p, q: poly[(i + 1) % poly.length], len: Math.hypot(poly[(i + 1) % poly.length][0] - p[0], poly[(i + 1) % poly.length][1] - p[1]) }))
@@ -188,8 +189,15 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
   for (let k = 0; k + 1 < stops.length; k++) if (!(cross && stops[k] === vBand[0])) roomSpans.push([stops[k], stops[k + 1]])
 
   // corridor walls, a door into every room along them
+  // a door goes in the middle of the stretch of wall the room actually has (angled ends can clip it short)
+  const doorIn = (wallRuns: [number, number][], [a, b]: [number, number]): [number, number][] => {
+    const runs = wallRuns.map(([p, q]) => [Math.max(p, a), Math.min(q, b)] as [number, number]).filter(([p, q]) => q - p >= doorGap + cell)
+    const [p, q] = runs.sort((u, v) => (v[1] - v[0]) - (u[1] - u[0]))[0] ?? [0, 0]
+    return q > p ? [[(p + q) / 2 - doorGap / 2, (p + q) / 2 + doorGap / 2]] : []
+  }
   for (const y of hBand) {
-    const doors = roomSpans.map(([a, b]) => [(a + b) / 2 - doorGap / 2, (a + b) / 2 + doorGap / 2] as [number, number])
+    const runs = subtract(clipLine(poly, 0, y), cross ? [vBand] : [])
+    const doors = roomSpans.flatMap(span => doorIn(runs, span))
     for (const [a, b] of subtract(clipLine(poly, 0, y), [...doors, ...(cross ? [vBand] : [])])) lines.push([[a, y], [b, y]])
   }
   if (cross) for (const x of vBand) {

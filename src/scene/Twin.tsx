@@ -4,6 +4,7 @@ import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitImpl } from 'three-stdlib'
+import { TWIN_FOV, TWIN_INTRO_HEIGHT } from '../campus/framing'
 import { CELL } from '../sim/layout'
 import type { Simulation } from '../sim/simulation'
 import { personInZone, zoneAt } from '../sim/outcome'
@@ -29,7 +30,7 @@ const COMPACT = {
 }
 const presetFor = (p: keyof typeof PRESETS, compact: boolean) => (compact ? COMPACT : PRESETS)[p]
 
-const INTRO_FROM = new THREE.Vector3(0, 44, 0.01) // straight down, long axis across the screen, as the campus close-up left it
+const INTRO_FROM = new THREE.Vector3(0, TWIN_INTRO_HEIGHT, 0.01) // straight down, long axis across the screen, as the campus close-up left it
 const INTRO_MS = 2400
 
 /** Eases to the camera preset. After a campus hand-off it holds overhead until the crossfade starts, then keeps descending. */
@@ -47,7 +48,8 @@ function CameraRig({ compact, intro }: { compact: boolean; intro: boolean }) {
       if (intro && now < startAt) { raf = requestAnimationFrame(tick); return }
       t0 ||= now
       const k = Math.min(1, (now - t0) / (intro ? INTRO_MS : 600))
-      const e = 1 - Math.pow(1 - k, 3)
+      // after a hand-off, start from rest so the descent picks up where the campus camera slows down
+      const e = intro ? (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2) : 1 - Math.pow(1 - k, 3)
       camera.position.lerpVectors(from, target.current, e)
       controls?.target.set(0, 0, 0)
       controls?.update()
@@ -95,7 +97,7 @@ export function Twin({ sim, routeColor, crowdTint, compact = false, intro = fals
     <Canvas
       shadows={false}
       dpr={[1, 1.25]}
-      camera={{ position: (intro ? INTRO_FROM : presetFor('iso', compact)).clone(), fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: (intro ? INTRO_FROM : presetFor('iso', compact)).clone(), fov: TWIN_FOV, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ cursor: tool === 'orbit' ? 'grab' : 'crosshair' }}
     >

@@ -40,11 +40,13 @@ export function Results() {
       <div className="metrics">
         {CARDS.map(c => {
           const b = c.get(baseline), a = ai ? c.get(ai) : null
-          const better = a !== null && a < b - 1e-9, worse = a !== null && a > b + 1e-9
+          // compare what is shown: a difference that rounds away is no change
+          const same = a !== null && c.fmt(a) === c.fmt(b)
+          const better = a !== null && !same && a < b, worse = a !== null && !same && a > b
           return (
             <div key={c.label} className={`metric ${better ? 'win' : worse ? 'worse' : ''}`} title={c.hint}>
               <span className="metric-label">{c.label}</span>
-              {a === null ? (
+              {a === null || same ? (
                 <span className="metric-value">{c.fmt(b)}<small>{c.unit}</small></span>
               ) : (
                 <div className="vs">

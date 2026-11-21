@@ -163,8 +163,7 @@ export function segmentPlan(solid: Uint8Array, W: number, H: number): Segmentati
     const x = i % W, y = (i / W) | 0
     return N4.some(([dx, dy]) => { const nx = x + dx, ny = y + dy; return nx < 0 || ny < 0 || nx >= W || ny >= H || cls[ny * W + nx] === VOID })
   }
-  const openings = components(W, H, i => cls[i] === 0 && touchesOutside(i))
-    .sort((a, b) => b.length - a.length).slice(0, 8).map(c => c.map(i => toCell(i, W)))
+  const gaps = components(W, H, i => cls[i] === 0 && touchesOutside(i))
 
   // rooms: close door-sized gaps, take floor components, then give door cells back to the nearest room.
   // Door width in cells depends on drawing scale, so try ≤2-cell and ≤4-cell doors and keep the finer split.
@@ -192,5 +191,8 @@ export function segmentPlan(solid: Uint8Array, W: number, H: number): Segmentati
   }
   const rooms: Cell[][] = comps.map(() => [])
   for (let i = 0; i < n; i++) if (roomOf[i] >= 0) rooms[roomOf[i]].push(toCell(i, W))
+  // a gap only counts as an exit if it leads into a room (not a sliver of floor caught in a notch of the outline)
+  const openings = gaps.filter(c => c.length >= 2 && c.some(i => roomOf[i] >= 0))
+    .sort((a, b) => b.length - a.length).slice(0, 8).map(c => c.map(i => toCell(i, W)))
   return { cls, rooms, roomOf, openings }
 }

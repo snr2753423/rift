@@ -73,7 +73,7 @@ export async function importPlan(src: string, onSteps: (steps: Step[]) => void, 
   if (semantics && opts.title) semantics = { ...semantics, title: opts.title }
 
   push({ label: 'Building digital twin…', state: 'run' })
-  const { scenario, notes } = buildImportedScenario(grid, semantics)
+  const { scenario, notes } = buildImportedScenario(grid, semantics, { exactExits: opts.vision === false && Boolean(opts.fallback) && semantics === opts.fallback })
   done('ok', `Twin ready · ${scenario.layout!.zones.reduce((a, z) => a + z.occupants, 0)} occupants simulated`)
   return { scenario, semantics, info: { imageUrl: dataUrl, notes: [...notes, ...(semantics?.notes ?? [])], provider } }
 }

@@ -5,6 +5,8 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { OrbitControls as OrbitImpl } from 'three-stdlib'
 import type { CampusData, Spot } from './data'
+import { matchTwinPose, orientedBox, type Rect } from './framing'
+import { toPoints } from './plan'
 
 const HEIGHT_SCALE = 1.5 // a little taller than life so the campus reads from far away
 const FOV = 35
@@ -23,16 +25,23 @@ function extrude(flat: number[], h: number): THREE.BufferGeometry | null {
   return g
 }
 
-/** Camera pose straight above a building with its long axis across the screen, as the twin will show it. */
-export function closeUp(s: Spot, aspect: number) {
-  const span = s.size * 1.7
-  const h = Math.max(span / aspect, span * 0.62) / (2 * Math.tan((FOV * Math.PI) / 360))
-  const v = new THREE.Vector3(-Math.sin(s.angle), 0, Math.cos(s.angle))
-  const target = new THREE.Vector3(s.center[0], 0, s.center[1])
-  return { pos: target.clone().add(new THREE.Vector3(0, h, 0)).addScaledVector(v, h * 0.002), target }
+/** Where the twin's stage will sit on screen: measured once it is mounted, estimated from the layout before that. */
+function stageRect(w: number, h: number): Rect {
+  const r = document.querySelector('.stage')?.getBoundingClientRect()
+  if (r && r.width > 0 && r.height > 0) return { x: r.left, y: r.top, w: r.width, h: r.height }
+  if (w <= 900) return { x: 16, y: 64, w: w - 32, h: h * 0.6 }
+  const side = w <= 1280 ? 320 : 360
+  return { x: 12, y: 68, w: w - 36 - side, h: h - 242 }
 }
 
-type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void; cross?: number; onCross?: () => void } | null
+/** Camera pose straight above a building, with its roof exactly where the twin will draw the floor plan. */
+export function closeUp(s: Spot, size: { width: number; height: number }) {
+  const box = orientedBox(toPoints(s.footprint), s.angle)
+  const p = matchTwinPose(box, s.angle, s.height * HEIGHT_SCALE, { w: size.width, h: size.height }, stageRect(size.width, size.height), FOV)
+  return { pos: new THREE.Vector3(...p.pos), target: new THREE.Vector3(...p.target) }
+}
+
+type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void; cross?: number; onCross?: () => void; retarget?: () => { pos: THREE.Vector3; target: THREE.Vector3 } } | null
 
 /** Eases the camera and orbit target along one flight, then hands control back to OrbitControls. */
 function Rig({ flight }: { flight: Flight }) {
@@ -44,6 +53,7 @@ function Rig({ flight }: { flight: Flight }) {
     if (st.current.f !== flight) st.current = { f: flight, t0: clock.elapsedTime, finished: false, crossed: false }
     if (st.current.finished) return
     const k = Math.min(1, (clock.elapsedTime - st.current.t0) / flight.dur), e = ease(k)
+    if (flight.retarget) { const r = flight.retarget(); flight.to.copy(r.pos); flight.toT.copy(r.target) } // the stage mounts mid-flight
     camera.position.lerpVectors(flight.from, flight.to, e)
     controls.target.lerpVectors(flight.fromT, flight.toT, e)
     controls.update()
@@ -142,15 +152,15 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
   const [interacted, setInteracted] = useState(false)
   // entry: fly in from high above, or back out from the building we just left (runs once per mount)
   useEffect(() => {
-    const from = returnFrom ? closeUp(returnFrom, size.width / size.height) : { pos: INTRO_FROM, target: OVERVIEW.target }
+    const from = returnFrom ? closeUp(returnFrom, size) : { pos: INTRO_FROM, target: OVERVIEW.target }
     camera.position.copy(from.pos)
     setFlight({ from: from.pos.clone(), to: OVERVIEW.pos.clone(), fromT: from.target.clone(), toT: OVERVIEW.target.clone(), dur: returnFrom ? 1.8 : 2.6, done: () => setSettled(true) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selected) return
-    const to = closeUp(selected, size.width / size.height)
+    const to = closeUp(selected, size)
     const fromT = controls?.target.clone() ?? OVERVIEW.target.clone()
-    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 2.6, cross: 0.68, onCross })
+    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 2.6, cross: 0.8, onCross, retarget: () => closeUp(selected, size) })
   }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>

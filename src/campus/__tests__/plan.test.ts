@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildImportedScenario, findContentBox, rasterToGrid, type RasterImage } from '../../import/floorplan'
-import { runHeadless } from '../../sim/simulation'
+import { runHeadless, Simulation } from '../../sim/simulation'
 import { baselineFor } from '../../sim/strategy'
 import { FEATURED } from '../buildings'
 import { clipLine, floorsFor, generatePlan, principalAngle, toPoints, type Pt } from '../plan'
@@ -53,6 +53,22 @@ describe('featured campus buildings', () => {
       // no fire: checks every occupant has a route out
       const m = runHeadless({ ...scenario, ignitions: [] }, [], baselineFor(scenario.layout))
       expect(m.remaining).toBe(0)
+    })
+    for (let floor = 1; floor <= Math.min(3, floorsFor(b.h)); floor++) it(`${f.short} floor ${floor}: one connected floor, so a plan has real choices`, () => {
+      const plan = generatePlan({ footprint: b.p, entrances: b.e, rooms: f.rooms, floor })
+      const img = rasterize(plan.walls, plan.wallWidth)
+      const grid = rasterToGrid(img, findContentBox(img), 64, 40)
+      const { scenario } = buildImportedScenario(grid, { ...plan.semantics, title: f.name }, { exactExits: true })
+      const L = scenario.layout!
+      // no stray gap read as an exit
+      expect(L.exits.length).toBe(plan.exitCount)
+      const sim = new Simulation(scenario, [], baselineFor(L))
+      const reach = L.zones.map(z => {
+        const cells = z.cells ?? []
+        return L.exits.filter((_, e) => cells.some(([x, y]) => Number.isFinite(sim.fields[e]![y * sim.world.width + x]))).length
+      })
+      expect(Math.min(...reach)).toBeGreaterThanOrEqual(2)
+      expect(reach.filter(r => r === L.exits.length).length / reach.length).toBeGreaterThanOrEqual(0.8)
     })
   }
 })

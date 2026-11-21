@@ -111,13 +111,50 @@ function openSealedRoom(solid: Uint8Array, W: number, H: number, room: Cell[], r
   return false
 }
 
+/** Connected walkable areas: component id per cell (-1 for walls/outside) and the largest component. */
+function floorParts(solid: Uint8Array, W: number, H: number) {
+  const of = new Int32Array(W * H).fill(-1)
+  let count = 0, largest = -1, best = 0
+  for (let s = 0; s < W * H; s++) {
+    if (solid[s] !== 0 || of[s] >= 0) continue
+    const stack = [s]; of[s] = count
+    let size = 0
+    while (stack.length) {
+      const i = stack.pop()!; size++
+      const x = i % W, y = (i / W) | 0
+      for (const [dx, dy] of N4) {
+        const nx = x + dx, ny = y + dy
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
+        const j = ny * W + nx
+        if (solid[j] === 0 && of[j] < 0) { of[j] = count; stack.push(j) }
+      }
+    }
+    if (size > best) { best = size; largest = count }
+    count++
+  }
+  return { of, count, largest }
+}
+
+/** Every cell of the component that holds this zone (the zone plus whatever it is already joined to). */
+function z2cells(parts: ReturnType<typeof floorParts>, z: ZoneDef, W: number): Cell[] {
+  const id = z.cells!.map(([x, y]) => parts.of[y * W + x]).find(v => v >= 0 && v !== parts.largest)!
+  const out: Cell[] = []
+  for (let i = 0; i < parts.of.length; i++) if (parts.of[i] === id) out.push([i % W, (i / W) | 0])
+  return out
+}
+
 const centre = (cells: Cell[]): [number, number] => [cells.reduce((a, c) => a + c[0], 0) / cells.length, cells.reduce((a, c) => a + c[1], 0) / cells.length]
 
 /**
  * Build a simulation scenario that keeps the plan's exact shape: outside is void, every walled area is a room,
  * exits come from real gaps in the outer wall (named by the vision model when it sees them).
  */
-export function buildImportedScenario(grid: GridResult, sem: Semantics | null): { scenario: Scenario; notes: string[] } {
+export interface BuildOptions {
+  /** the semantics list every exit exactly (a plan we drew ourselves): gaps that match none of them are drawing artefacts and get walled up */
+  exactExits?: boolean
+}
+
+export function buildImportedScenario(grid: GridResult, sem: Semantics | null, opts: BuildOptions = {}): { scenario: Scenario; notes: string[] } {
   const { W, H, fit } = grid
   const seg = segmentPlan(grid.solid, W, H)
   const solid = Uint8Array.from(seg.cls)
@@ -128,15 +165,17 @@ export function buildImportedScenario(grid: GridResult, sem: Semantics | null): 
   const used = new Set<string>()
   const mkId = (name: string, i: number) => { let id = `EXIT_${slug(name)}`; if (used.has(id)) id = `${id}_${i + 1}`; used.add(id); return id }
   const semExits = (sem?.exits ?? []).map(e => ({ ...e, g: toGrid(e.x, e.y), matched: false }))
-  const exits: ExitDef[] = seg.openings.map((cells, i) => {
+  const exits: ExitDef[] = []
+  seg.openings.forEach((cells, i) => {
     const [cx, cy] = centre(cells)
     const m = semExits.filter(e => !e.matched).sort((a, b) => Math.hypot(a.g[0] - cx, a.g[1] - cy) - Math.hypot(b.g[0] - cx, b.g[1] - cy))[0]
     const near = m && Math.hypot(m.g[0] - cx, m.g[1] - cy) <= 8
     if (near) m.matched = true
+    if (!near && opts.exactExits) { for (const [x, y] of cells) solid[y * W + x] = 1; return }
     const name = near ? m.name : `Exit ${i + 1}`
-    return { id: mkId(name, i), name, cells, fireDoor: /fire|emerg/i.test(name) }
+    exits.push({ id: mkId(name, i), name, cells, fireDoor: /fire|emerg/i.test(name) })
   })
-  if (seg.openings.length) notes.push(`${seg.openings.length} exit${seg.openings.length > 1 ? 's' : ''} found as gaps in the outer wall of the drawing.`)
+  if (exits.length) notes.push(`${exits.length} exit${exits.length > 1 ? 's' : ''} found as gaps in the outer wall of the drawing.`)
   for (const e of semExits.filter(x => !x.matched)) {
     const cells = carveEnvelopeExit(solid, W, H, e.g[0], e.g[1])
     if (cells.length) { exits.push({ id: mkId(e.name, exits.length), name: e.name, cells, fireDoor: /fire|emerg/i.test(e.name) }); notes.push(`${e.name}: the vision model saw an exit where the drawing has no gap — a doorway was opened there.`) }
@@ -185,7 +224,19 @@ export function buildImportedScenario(grid: GridResult, sem: Semantics | null): 
     if (z.cells!.some(([x, y]) => reach[y * W + x])) continue
     if (openSealedRoom(solid, W, H, z.cells!, reach)) notes.push(`${z.name} appears sealed in the drawing (no door) — a doorway was added so occupants can leave.`)
   }
+  // --- rooms that only reach their own exit (a door the drawing lost) are joined to the rest of the floor
+  for (let guard = 0; guard < zones.length; guard++) {
+    const parts = floorParts(solid, W, H)
+    if (parts.count < 2) break
+    const main = new Uint8Array(W * H)
+    for (let i = 0; i < W * H; i++) if (parts.of[i] === parts.largest) main[i] = 1
+    const cut = zones.find(z => z.cells!.some(([x, y]) => parts.of[y * W + x] >= 0 && parts.of[y * W + x] !== parts.largest))
+    if (!cut || !openSealedRoom(solid, W, H, z2cells(parts, cut, W), main)) break
+    notes.push(`${cut.name} was cut off from the rest of the floor in the drawing — a doorway was added to join it.`)
+  }
 
+  // repairs moved walls: keep only walkable cells in each room
+  for (const z of zones) z.cells = z.cells!.filter(([x, y]) => solid[y * W + x] === 0)
   const zoneMap = new Int16Array(W * H).fill(-1)
   zones.forEach((z, zi) => { for (const [x, y] of z.cells!) zoneMap[y * W + x] = zi })
 
