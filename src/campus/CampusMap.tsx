@@ -1,0 +1,191 @@
+import { OrbitControls } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import type { OrbitControls as OrbitImpl } from 'three-stdlib'
+import type { CampusData, Spot } from './data'
+
+const HEIGHT_SCALE = 1.5 // a little taller than life so the campus reads from far away
+const FOV = 35
+const OVERVIEW = { pos: new THREE.Vector3(520, 1250, 1500), target: new THREE.Vector3(0, 0, 120) }
+const INTRO_FROM = new THREE.Vector3(900, 2600, 2700)
+
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+function extrude(flat: number[], h: number): THREE.BufferGeometry | null {
+  if (flat.length < 6) return null
+  const shape = new THREE.Shape()
+  shape.moveTo(flat[0], -flat[1])
+  for (let i = 2; i < flat.length; i += 2) shape.lineTo(flat[i], -flat[i + 1])
+  const g = new THREE.ExtrudeGeometry(shape, { depth: h * HEIGHT_SCALE, bevelEnabled: false })
+  g.rotateX(-Math.PI / 2) // shape (x, −z) extruded along +y
+  return g
+}
+
+/** Camera pose straight above a building with its long axis across the screen, as the twin will show it. */
+export function closeUp(s: Spot, aspect: number) {
+  const span = s.size * 1.25
+  const h = Math.max(span / aspect, span * 0.62) / (2 * Math.tan((FOV * Math.PI) / 360))
+  const v = new THREE.Vector3(-Math.sin(s.angle), 0, Math.cos(s.angle))
+  const target = new THREE.Vector3(s.center[0], 0, s.center[1])
+  return { pos: target.clone().add(new THREE.Vector3(0, h, 0)).addScaledVector(v, h * 0.002), target }
+}
+
+type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void } | null
+
+/** Eases the camera and orbit target along one flight, then hands control back to OrbitControls. */
+function Rig({ flight }: { flight: Flight }) {
+  const camera = useThree(s => s.camera)
+  const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
+  const st = useRef({ f: null as Flight, t0: 0, finished: true })
+  useFrame(({ clock }) => {
+    if (!flight || !controls) return
+    if (st.current.f !== flight) st.current = { f: flight, t0: clock.elapsedTime, finished: false }
+    if (st.current.finished) return
+    const k = Math.min(1, (clock.elapsedTime - st.current.t0) / flight.dur), e = ease(k)
+    camera.position.lerpVectors(flight.from, flight.to, e)
+    controls.target.lerpVectors(flight.fromT, flight.toT, e)
+    controls.update()
+    if (k >= 1) { st.current.finished = true; flight.done?.() }
+  })
+  return null
+}
+
+function Roads({ data }: { data: CampusData }) {
+  const groups = useMemo(() => (['major', 'minor', 'path'] as const).map(k => {
+    const pos: number[] = []
+    for (const r of data.roads) if (r.k === k) for (let i = 0; i + 3 < r.p.length; i += 2) pos.push(r.p[i], 0.3, r.p[i + 1], r.p[i + 2], 0.3, r.p[i + 3])
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    return { k, g }
+  }), [data])
+  useEffect(() => () => groups.forEach(x => x.g.dispose()), [groups])
+  const color = { major: '#6a6e78', minor: '#3a3d44', path: '#30333a' }
+  return <>{groups.map(({ k, g }) => <lineSegments key={k} geometry={g} raycast={() => null}><lineBasicMaterial color={color[k]} /></lineSegments>)}</>
+}
+
+function Context({ data, spots, dim }: { data: CampusData; spots: Spot[]; dim: number }) {
+  const geo = useMemo(() => {
+    const featured = new Set(spots.map(s => s.name))
+    const parts = data.buildings.filter(b => !b.n || !featured.has(b.n)).map(b => extrude(b.p, b.h)).filter((g): g is THREE.BufferGeometry => g !== null)
+    const merged = mergeGeometries(parts)
+    parts.forEach(p => p.dispose())
+    return merged
+  }, [data, spots])
+  useEffect(() => () => geo?.dispose(), [geo])
+  const mat = useRef<THREE.MeshStandardMaterial>(null)
+  useFrame(() => { if (mat.current) mat.current.opacity += ((1 - dim * 0.75) - mat.current.opacity) * 0.08 })
+  if (!geo) return null
+  return <mesh geometry={geo} raycast={() => null}><meshStandardMaterial ref={mat} color="#3c3f47" roughness={0.95} transparent /></mesh>
+}
+
+/** Keeps the DOM labels (owned by the overlay) pinned above their buildings. */
+function LabelTracker({ spots, labels }: { spots: Spot[]; labels: Map<string, HTMLElement> }) {
+  const camera = useThree(s => s.camera)
+  const size = useThree(s => s.size)
+  const v = useMemo(() => new THREE.Vector3(), [])
+  useFrame(() => {
+    for (const s of spots) {
+      const el = labels.get(s.name)
+      if (!el) continue
+      v.set(s.center[0], s.height * HEIGHT_SCALE + 6, s.center[1]).project(camera)
+      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
+      el.style.opacity = visible ? '1' : '0'
+      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, -100%)`
+    }
+  })
+  return null
+}
+
+function Landmark({ spot, hovered, selected, busy, onHover, onPick }: { spot: Spot; hovered: boolean; selected: boolean; busy: boolean; onHover: (n: string | null) => void; onPick: (s: Spot) => void }) {
+  const geo = useMemo(() => extrude(spot.footprint, spot.height), [spot])
+  useEffect(() => () => geo?.dispose(), [geo])
+  const lit = hovered || selected
+  if (!geo) return null
+  return (
+    <group>
+      <mesh
+        geometry={geo}
+        onPointerOver={e => { e.stopPropagation(); onHover(spot.name) }}
+        onPointerOut={() => onHover(null)}
+        onClick={e => { e.stopPropagation(); if (!busy) onPick(spot) }}
+      >
+        <meshStandardMaterial color={lit ? '#76b900' : '#c9ccd3'} emissive={lit ? '#76b900' : '#000000'} emissiveIntensity={lit ? 0.35 : 0} roughness={0.7} />
+      </mesh>
+    </group>
+  )
+}
+
+export interface CampusMapProps {
+  data: CampusData
+  spots: Spot[]
+  selected: Spot | null
+  /** fly from this building's close-up back to the overview (returning from a twin) */
+  returnFrom: Spot | null
+  hovered: string | null
+  /** label elements by building name, positioned every frame */
+  labels: Map<string, HTMLElement>
+  onHover: (n: string | null) => void
+  onPick: (s: Spot) => void
+  onArrived: () => void
+}
+
+function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, onPick, onArrived }: CampusMapProps) {
+  const camera = useThree(s => s.camera)
+  const size = useThree(s => s.size)
+  const [flight, setFlight] = useState<Flight>(null)
+  const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
+  const [settled, setSettled] = useState(false)
+  const [interacted, setInteracted] = useState(false)
+  // entry: fly in from high above, or back out from the building we just left (runs once per mount)
+  useEffect(() => {
+    const from = returnFrom ? closeUp(returnFrom, size.width / size.height) : { pos: INTRO_FROM, target: OVERVIEW.target }
+    camera.position.copy(from.pos)
+    setFlight({ from: from.pos.clone(), to: OVERVIEW.pos.clone(), fromT: from.target.clone(), toT: OVERVIEW.target.clone(), dur: returnFrom ? 1.8 : 2.6, done: () => setSettled(true) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!selected) return
+    const to = closeUp(selected, size.width / size.height)
+    const fromT = controls?.target.clone() ?? OVERVIEW.target.clone()
+    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 1.9, done: onArrived })
+  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <color attach="background" args={['#0a0a0b']} />
+      <fog attach="fog" args={['#0a0a0b', 2200, 4200]} />
+      <ambientLight intensity={0.7} />
+      <hemisphereLight args={['#e8eaf0', '#0a0a0b', 0.6]} />
+      <directionalLight position={[600, 1200, 400]} intensity={1.1} />
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.2, 0]} raycast={() => null}>
+        <planeGeometry args={[9000, 9000]} />
+        <meshStandardMaterial color="#101012" roughness={1} />
+      </mesh>
+      <Roads data={data} />
+      <Context data={data} spots={spots} dim={selected ? 1 : 0} />
+      {spots.map(s => <Landmark key={s.name} spot={s} hovered={hovered === s.name} selected={selected?.name === s.name} busy={Boolean(selected)} onHover={onHover} onPick={onPick} />)}
+      <OrbitControls
+        makeDefault
+        enabled={settled && !selected}
+        enableDamping
+        dampingFactor={0.08}
+        autoRotate={settled && !interacted && !selected}
+        autoRotateSpeed={0.25}
+        maxPolarAngle={1.2}
+        minDistance={180}
+        maxDistance={3200}
+        onStart={() => setInteracted(true)}
+      />
+      <Rig flight={flight} />
+      <LabelTracker spots={spots} labels={labels} />
+    </>
+  )
+}
+
+export function CampusMap(props: CampusMapProps) {
+  return (
+    <Canvas dpr={[1, 1.5]} camera={{ position: INTRO_FROM.toArray(), fov: FOV, near: 5, far: 9000 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ cursor: props.hovered ? 'pointer' : 'grab' }}>
+      <Scene {...props} />
+    </Canvas>
+  )
+}

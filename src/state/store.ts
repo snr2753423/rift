@@ -7,6 +7,8 @@ import type { Metrics, Modification, Scenario, Strategy } from '../sim/types'
 export type ToolMode = 'orbit' | 'fire' | 'obstacle' | 'block'
 export type Heatmap = 'off' | 'density' | 'smoke' | 'danger'
 export type AgentStatus = 'idle' | 'running' | 'done' | 'error'
+/** campus map → (crossfade) → building twin */
+export type View = 'campus' | 'entering' | 'twin'
 
 export interface Decision {
   provider: Provider
@@ -17,9 +19,14 @@ export interface Decision {
   changes: string[]
 }
 
-export interface ImportInfo { imageUrl: string; notes: string[]; provider: 'nemotron-vl' | 'heuristic' }
+export interface ImportInfo { imageUrl: string; notes: string[]; provider: 'nemotron-vl' | 'heuristic' | 'generated' }
 
 interface State {
+  view: View
+  /** featured campus building the current twin was built from */
+  building: string | null
+  /** when the last campus → twin transition started (performance.now), drives the twin's descending camera */
+  enteredAt: number
   scenarioId: ScenarioId | 'imported'
   customScenario: Scenario | null
   importInfo: ImportInfo | null
@@ -56,6 +63,9 @@ interface State {
 let eventSeq = 0
 
 export const useRift = create<State>((set) => ({
+  view: 'campus',
+  building: null,
+  enteredAt: 0,
   scenarioId: 'kitchen_fire',
   customScenario: null,
   importInfo: null,

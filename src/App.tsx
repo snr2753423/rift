@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { wireAutomation } from './state/actions'
 import { startDriver } from './state/live'
+import { CampusView } from './campus/CampusView'
 import { useRift, type ToolMode } from './state/store'
 import { AgentPanel } from './ui/AgentPanel'
 import { Results } from './ui/Results'
@@ -14,7 +15,7 @@ export default function App() {
     startDriver()
     wireAutomation()
     const onKey = (e: KeyboardEvent) => {
-      if (['INPUT', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return
+      if (['INPUT', 'SELECT'].includes((e.target as HTMLElement)?.tagName) || useRift.getState().view !== 'twin') return
       const t = KEYS[e.key.toLowerCase()]
       if (t) useRift.getState().set({ tool: t })
       if (e.key === ' ') { e.preventDefault(); useRift.getState().set({ playing: !useRift.getState().playing }) }
@@ -22,12 +23,18 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+  const view = useRift(s => s.view)
   return (
-    <div className="app">
-      <TopBar />
-      <Stage />
-      <AgentPanel />
-      <Results />
-    </div>
+    <>
+      {view !== 'campus' && (
+        <div className="app">
+          <TopBar />
+          <Stage />
+          <AgentPanel />
+          <Results />
+        </div>
+      )}
+      {view !== 'twin' && <CampusView leaving={view === 'entering'} />}
+    </>
   )
 }

@@ -1,30 +1,9 @@
 import { useRef, useState } from 'react'
-import { buildImportedScenario, findContentBox, rasterToGrid, type Semantics } from '../import/floorplan'
-import { readPlanWithNemotron } from '../import/vision'
+import type { Semantics } from '../import/floorplan'
+import { importPlan, type Step } from '../import/pipeline'
 import { useRift } from '../state/store'
 
-type Step = { label: string; state: 'run' | 'ok' | 'warn' }
-
-const MAX_PIXELS = 40_000_000
-
-/** Load without forcing a full decode, then reject oversized images (decompression bombs) before drawing. */
-async function loadImage(src: string): Promise<HTMLImageElement> {
-  const img = new Image()
-  await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('could not read image')); img.src = src })
-  if ((img.naturalWidth || 1) * (img.naturalHeight || 1) > MAX_PIXELS) throw new Error('image is too large (over 40 megapixels)')
-  return img
-}
-
-function rasterize(img: HTMLImageElement, maxW = 1280) {
-  const scale = Math.min(1, maxW / (img.naturalWidth || maxW))
-  const w = Math.max(1, Math.round((img.naturalWidth || maxW) * scale)), h = Math.max(1, Math.round((img.naturalHeight || maxW * 0.625) * scale))
-  const c = document.createElement('canvas')
-  c.width = w; c.height = h
-  const g = c.getContext('2d', { willReadFrequently: true })!
-  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h)
-  g.drawImage(img, 0, 0, w, h)
-  return { canvas: c, raster: { width: w, height: h, data: g.getImageData(0, 0, w, h).data } }
-}
+const SOURCE = { 'nemotron-vl': 'Nemotron VL', heuristic: 'heuristics', generated: 'the generated plan' } as const
 
 export function ImportPanel() {
   const loadCustom = useRift(s => s.loadCustom)
@@ -38,40 +17,12 @@ export function ImportPanel() {
   async function run(src: string) {
     setBusy(true)
     setSem(null)
-    const log: Step[] = []
-    const push = (s: Step) => { log.push(s); setSteps([...log]) }
-    const done = (state: Step['state'], label?: string) => { log[log.length - 1] = { label: label ?? log[log.length - 1].label, state }; setSteps([...log]) }
     try {
-      push({ label: 'Extracting walls (pixel-threshold CV)…', state: 'run' })
-      const img = await loadImage(src)
-      const { canvas, raster } = rasterize(img)
-      const box = findContentBox(raster)
-      const grid = rasterToGrid(raster, box, 64, 40)
-      const walls = grid.solid.reduce((a, b) => a + b, 0)
-      done('ok', `Walls traced · ${walls} wall cells, true proportions ${grid.fit.w}×${grid.fit.h}`)
-      const crop = document.createElement('canvas')
-      const bw = box.x1 - box.x0 + 1, bh = box.y1 - box.y0 + 1, k = Math.min(1, 1024 / bw)
-      crop.width = Math.round(bw * k); crop.height = Math.round(bh * k)
-      crop.getContext('2d')!.drawImage(canvas, box.x0, box.y0, bw, bh, 0, 0, crop.width, crop.height)
-      const dataUrl = crop.toDataURL('image/jpeg', 0.85)
-      push({ label: 'Nemotron VL reading rooms, exits, fire risk…', state: 'run' })
-      let semantics: Semantics | null = null
-      let provider: 'nemotron-vl' | 'heuristic' = 'heuristic'
-      try {
-        const r = await readPlanWithNemotron(dataUrl)
-        semantics = r.semantics
-        if (semantics) { provider = 'nemotron-vl'; done('ok', `Nemotron VL · ${semantics.rooms.length} rooms, ${semantics.exits.length} exits (${(r.latencyMs / 1000).toFixed(1)}s)`) }
-        else done('warn', 'Nemotron VL returned no usable layout — heuristic fallback')
-      } catch (e) {
-        done('warn', `Vision unavailable (${e instanceof Error ? e.message : 'error'}) — heuristic fallback`)
-      }
-      setSem(semantics)
-      push({ label: 'Building digital twin…', state: 'run' })
-      const { scenario, notes } = buildImportedScenario(grid, semantics)
-      loadCustom(scenario, { imageUrl: dataUrl, notes: [...notes, ...(semantics?.notes ?? [])], provider })
-      done('ok', `Twin ready · ${scenario.layout!.zones.reduce((a, z) => a + z.occupants, 0)} occupants simulated`)
+      const r = await importPlan(src, setSteps)
+      setSem(r.semantics)
+      loadCustom(r.scenario, r.info)
     } catch (e) {
-      push({ label: `Import failed: ${e instanceof Error ? e.message : String(e)}`, state: 'warn' })
+      setSteps(s => [...s, { label: `Import failed: ${e instanceof Error ? e.message : String(e)}`, state: 'warn' }])
     } finally {
       setBusy(false)
     }
@@ -109,7 +60,7 @@ export function ImportPanel() {
           {sem?.fireRisk && <span className="risk" style={{ left: `${sem.fireRisk.x * 100}%`, top: `${sem.fireRisk.y * 100}%` }} title={sem.fireRisk.reason} />}
         </div>
       )}
-      {active && info && <ul className="import-notes">{info.notes.map((n, i) => <li key={i}>{n}</li>)}<li>Approximate reconstruction — geometry from image pixels, semantics from {info.provider === 'nemotron-vl' ? 'Nemotron VL' : 'heuristics'}. Not a survey.</li></ul>}
+      {active && info && <ul className="import-notes">{info.notes.map((n, i) => <li key={i}>{n}</li>)}<li>Approximate reconstruction: geometry from image pixels, semantics from {SOURCE[info.provider]}. Not a survey.</li></ul>}
     </div>
   )
 }

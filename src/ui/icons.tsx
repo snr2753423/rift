@@ -8,6 +8,7 @@ const PATHS = {
   restart: 'M4 12a8 8 0 1 0 2.5-5.8 M4 4v4h4',
   layers: 'M12 3l9 5-9 5-9-5z M3 13l9 5 9-5',
   upload: 'M12 16V4 M7 9l5-5 5 5 M4 20h16',
+  map: 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15',
 } as const
 
 export type IconName = keyof typeof PATHS
