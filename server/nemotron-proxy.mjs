@@ -1,6 +1,8 @@
 // Server-side proxy: the NVIDIA key never reaches the browser.
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
-const MAX_BODY = 400_000
+const MAX_BODY = 2_000_000 // room for a base64 floor-plan crop
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+const hostname = h => { try { return new URL(`http://${h}`).hostname } catch { return '' } }
 const WINDOW_MS = 60_000
 const MAX_PER_WINDOW = 40
 let windowStart = Date.now()
@@ -36,8 +38,12 @@ export function createNemotronHandler(env) {
     }
     if (req.method !== 'POST') return send(res, 405, { success: false, data: null, error: 'method not allowed' })
     if (!String(req.headers['content-type'] ?? '').includes('application/json')) return send(res, 415, { success: false, data: null, error: 'content-type must be application/json' })
+    // localhost-only: defeats DNS rebinding and cross-site use of the key
     const origin = req.headers.origin
-    if (origin && new URL(origin).host !== req.headers.host) return send(res, 403, { success: false, data: null, error: 'cross-origin requests are not allowed' })
+    let originHost = ''
+    try { originHost = origin ? new URL(origin).hostname : '' } catch { originHost = 'invalid' }
+    const originOk = !origin || LOCAL_HOSTS.has(originHost) || LOCAL_HOSTS.has(`[${originHost}]`)
+    if (!LOCAL_HOSTS.has(hostname(req.headers.host ?? '')) || !originOk) return send(res, 403, { success: false, data: null, error: 'only local requests are allowed' })
     if (!env.NVIDIA_API_KEY) return send(res, 503, { success: false, data: null, error: 'NVIDIA_API_KEY not configured' })
     const now = Date.now()
     if (now - windowStart > WINDOW_MS) { windowStart = now; count = 0 }
@@ -56,6 +62,7 @@ export function createNemotronHandler(env) {
       tool_choice: body.tools ? 'auto' : undefined,
       temperature: typeof body.temperature === 'number' ? Math.min(1, Math.max(0, body.temperature)) : 0.3,
       top_p: 0.95,
+      seed: Number.isInteger(body.seed) ? body.seed : undefined,
       max_tokens: Math.min(Math.max(Number(body.max_tokens) || 4096, 256), 8192),
       chat_template_kwargs: body.thinking === false
         ? { enable_thinking: false }

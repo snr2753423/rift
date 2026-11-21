@@ -39,7 +39,11 @@ export function rasterToGrid(img: RasterImage, box: Box, W: number, H: number, f
 }
 
 const num01 = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
-const str = (v: unknown, d: string) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : d)
+/** model-provided labels are untrusted: plain characters only, short (they reach the planner prompt) */
+const str = (v: unknown, d: string) => {
+  const t = typeof v === 'string' ? v.replace(/[^A-Za-z0-9 .,()'-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 28) : ''
+  return t || d
+}
 
 /** Validate the vision model's JSON (untrusted). Returns null when nothing usable is present. */
 export function parseSemantics(text: string): Semantics | null {
@@ -54,7 +58,7 @@ export function parseSemantics(text: string): Semantics | null {
   const fr = raw.fire_risk as Record<string, unknown> | undefined
   const fireRisk = fr && num01(fr.x) && num01(fr.y) ? { room: str(fr.room, 'unknown'), x: fr.x as number, y: fr.y as number, reason: str(fr.reason, '') } : null
   if (!rooms.length && !exits.length) return null
-  return { title: str(raw.title, 'Imported floor plan'), rooms, exits, fireRisk, notes: (Array.isArray(raw.notes) ? raw.notes : []).map(String).slice(0, 4) }
+  return { title: str(raw.title, 'Imported floor plan'), rooms, exits, fireRisk, notes: (Array.isArray(raw.notes) ? raw.notes : []).map(n => String(n).replace(/[^\x20-\x7E]/g, '').slice(0, 160)).slice(0, 4) }
 }
 
 const slug = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 14) || 'X'

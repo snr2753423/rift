@@ -5,11 +5,13 @@ import { useRift } from '../state/store'
 
 type Step = { label: string; state: 'run' | 'ok' | 'warn' }
 
+const MAX_PIXELS = 40_000_000
+
+/** Load without forcing a full decode, then reject oversized images (decompression bombs) before drawing. */
 async function loadImage(src: string): Promise<HTMLImageElement> {
   const img = new Image()
-  img.decoding = 'async'
-  img.src = src
-  await img.decode()
+  await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('could not read image')); img.src = src })
+  if ((img.naturalWidth || 1) * (img.naturalHeight || 1) > MAX_PIXELS) throw new Error('image is too large (over 40 megapixels)')
   return img
 }
 
@@ -92,7 +94,7 @@ export function ImportPanel() {
         <button disabled={busy} onClick={() => void run('/samples/clinic-plan.svg')}>Sample clinic</button>
       </div>
       <input ref={file} type="file" accept="image/*" hidden onChange={onFile} />
-      {steps.length > 0 && (
+      {steps.length > 0 && (busy || active) && (
         <ol className="import-steps">
           {steps.map((s, i) => <li key={i} className={s.state}>{s.label}</li>)}
         </ol>

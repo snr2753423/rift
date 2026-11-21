@@ -20,7 +20,8 @@ export async function readPlanWithNemotron(dataUrl: string, signal?: AbortSignal
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-      temperature: 0.1,
+      temperature: 0,
+      seed: 42,
       max_tokens: 4096,
       reasoning_budget: 1024,
     }),
