@@ -87,12 +87,13 @@ export function ImportPanel() {
   }
 
   return (
-    <section>
-      <h3>Reality input</h3>
-      <div className="seg">
-        <button disabled={busy} onClick={() => file.current?.click()}>Upload</button>
-        <button disabled={busy} onClick={() => void run('/samples/clinic-plan.svg')}>Clinic</button>
-        <button disabled={busy} onClick={() => void run('/samples/l-school-plan.svg')}>L-school</button>
+    <div>
+      <h4>Import a floor plan</h4>
+      <p>Walls are traced from the image. Nemotron VL names the rooms, exits and likeliest fire source.</p>
+      <div className="import-actions">
+        <button className="btn" disabled={busy} onClick={() => file.current?.click()}>Upload</button>
+        <button className="btn" disabled={busy} onClick={() => void run('/samples/clinic-plan.svg')}>Clinic</button>
+        <button className="btn" disabled={busy} onClick={() => void run('/samples/l-school-plan.svg')}>School</button>
       </div>
       <input ref={file} type="file" accept="image/*" hidden onChange={onFile} />
       {steps.length > 0 && (busy || active) && (
@@ -109,6 +110,6 @@ export function ImportPanel() {
         </div>
       )}
       {active && info && <ul className="import-notes">{info.notes.map((n, i) => <li key={i}>{n}</li>)}<li>Approximate reconstruction — geometry from image pixels, semantics from {info.provider === 'nemotron-vl' ? 'Nemotron VL' : 'heuristics'}. Not a survey.</li></ul>}
-    </section>
+    </div>
   )
 }
