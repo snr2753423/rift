@@ -62,6 +62,7 @@ describe('featured campus buildings', () => {
       const L = scenario.layout!
       // no stray gap read as an exit
       expect(L.exits.length).toBe(plan.exitCount)
+      expect(L.zones.every(z => (z.cells ?? []).length > 0)).toBe(true)
       const sim = new Simulation(scenario, [], baselineFor(L))
       const reach = L.zones.map(z => {
         const cells = z.cells ?? []

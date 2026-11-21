@@ -88,7 +88,9 @@ function reachable(solid: Uint8Array, W: number, H: number, exits: ExitDef[]): U
 }
 
 /** Shortest path from a sealed room through its wall to reachable floor; opens the wall cells on it. */
-function openSealedRoom(solid: Uint8Array, W: number, H: number, room: Cell[], reach: Uint8Array): boolean {
+function openSealedRoom(solid: Uint8Array, W: number, H: number, room: Cell[], reach: Uint8Array, keepEnvelope = false): boolean {
+  // keepEnvelope: never cut through a wall cell that touches the outside (that would open a gap that is not an exit)
+  const onEnvelope = (j: number) => solid[j] === 1 && N4.some(([dx, dy]) => solid[j + dy * W + dx] === VOID)
   const prev = new Int32Array(W * H).fill(-2)
   const queue: number[] = []
   for (const [x, y] of room) { const i = y * W + x; prev[i] = -1; queue.push(i) }
@@ -103,7 +105,7 @@ function openSealedRoom(solid: Uint8Array, W: number, H: number, room: Cell[], r
       const nx = x + dx, ny = y + dy
       if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue
       const j = ny * W + nx
-      if (prev[j] !== -2 || solid[j] === VOID) continue
+      if (prev[j] !== -2 || solid[j] === VOID || (keepEnvelope && onEnvelope(j))) continue
       prev[j] = i
       queue.push(j)
     }
@@ -215,7 +217,7 @@ export function buildImportedScenario(grid: GridResult, sem: Semantics | null, o
   })
   const total = raw.reduce((a, z) => a + z.occupants, 0)
   const k = total > 320 ? 320 / total : 1
-  const zones: ZoneDef[] = raw.map(z => ({ ...z, occupants: Math.max(2, Math.round(z.occupants * k)) }))
+  let zones: ZoneDef[] = raw.map(z => ({ ...z, occupants: Math.max(2, Math.round(z.occupants * k)) }))
   notes.push(`${zones.length} walled area${zones.length === 1 ? '' : 's'} found; occupancy modelled as a surge (≥60% of floor-area capacity).`)
 
   // --- a room the drawing seals completely gets a doorway to the nearest reachable space
@@ -224,19 +226,24 @@ export function buildImportedScenario(grid: GridResult, sem: Semantics | null, o
     if (z.cells!.some(([x, y]) => reach[y * W + x])) continue
     if (openSealedRoom(solid, W, H, z.cells!, reach)) notes.push(`${z.name} appears sealed in the drawing (no door) — a doorway was added so occupants can leave.`)
   }
-  // --- rooms that only reach their own exit (a door the drawing lost) are joined to the rest of the floor
-  for (let guard = 0; guard < zones.length; guard++) {
-    const parts = floorParts(solid, W, H)
-    if (parts.count < 2) break
-    const main = new Uint8Array(W * H)
-    for (let i = 0; i < W * H; i++) if (parts.of[i] === parts.largest) main[i] = 1
-    const cut = zones.find(z => z.cells!.some(([x, y]) => parts.of[y * W + x] >= 0 && parts.of[y * W + x] !== parts.largest))
-    if (!cut || !openSealedRoom(solid, W, H, z2cells(parts, cut, W), main)) break
-    notes.push(`${cut.name} was cut off from the rest of the floor in the drawing — a doorway was added to join it.`)
+  // --- our own generated plans: rooms that only reach their own exit (a door the drawing lost) join the rest of the floor.
+  // Uploaded plans are left as drawn: a real building can have wings that do not connect.
+  if (opts.exactExits) {
+    const stuck = new Set<string>()
+    for (let guard = 0; guard < zones.length; guard++) {
+      const parts = floorParts(solid, W, H)
+      const main = new Uint8Array(W * H)
+      for (let i = 0; i < W * H; i++) if (parts.of[i] === parts.largest) main[i] = 1
+      const cut = zones.find(z => !stuck.has(z.id) && z.cells!.some(([x, y]) => parts.of[y * W + x] >= 0 && parts.of[y * W + x] !== parts.largest))
+      if (!cut) break
+      const area = z2cells(parts, cut, W)
+      if (openSealedRoom(solid, W, H, area, main, true) || openSealedRoom(solid, W, H, area, main)) notes.push(`${cut.name} was cut off from the rest of the floor in the drawing — a doorway was added to join it.`)
+      else { stuck.add(cut.id); notes.push(`${cut.name} could not be joined to the rest of the floor.`) }
+    }
   }
-
   // repairs moved walls: keep only walkable cells in each room
   for (const z of zones) z.cells = z.cells!.filter(([x, y]) => solid[y * W + x] === 0)
+  zones = zones.filter(z => z.cells!.length > 0)
   const zoneMap = new Int16Array(W * H).fill(-1)
   zones.forEach((z, zi) => { for (const [x, y] of z.cells!) zoneMap[y * W + x] = zi })
 

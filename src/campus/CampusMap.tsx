@@ -30,7 +30,8 @@ function extrude(flat: number[], h: number): THREE.BufferGeometry | null {
 
 /** Where the twin's stage will sit on screen: measured once it is mounted, estimated from the layout before that. */
 function stageRect(w: number, h: number): Rect {
-  const r = document.querySelector('.stage')?.getBoundingClientRect()
+  const el = document.querySelector('.stage')
+  const r = el?.getBoundingClientRect()
   if (r && r.width > 0 && r.height > 0) return { x: r.left, y: r.top, w: r.width, h: r.height }
   if (w <= 900) return { x: 16, y: 64, w: w - 32, h: h * 0.6 }
   const side = w <= 1280 ? 320 : 360
@@ -38,10 +39,21 @@ function stageRect(w: number, h: number): Rect {
 }
 
 /** Camera pose straight above a building, with its roof exactly where the twin will draw the floor plan. */
-export function closeUp(s: Spot, size: { width: number; height: number }) {
+export function closeUp(s: Spot, size: { width: number; height: number }, stage = stageRect(size.width, size.height)) {
   const box = orientedBox(toPoints(s.footprint), s.angle)
-  const p = matchTwinPose(box, s.angle, s.height * HEIGHT_SCALE, { w: size.width, h: size.height }, stageRect(size.width, size.height), FOV)
+  const p = matchTwinPose(box, s.angle, s.height * HEIGHT_SCALE, { w: size.width, h: size.height }, stage, FOV)
   return { pos: new THREE.Vector3(...p.pos), target: new THREE.Vector3(...p.target) }
+}
+
+/** Re-aims the dive once the twin's stage is mounted, then stops measuring (no layout reads every frame). */
+function retargetOnce(s: Spot, size: { width: number; height: number }) {
+  let pose: ReturnType<typeof closeUp> | null = null
+  return () => {
+    if (pose) return pose
+    const now = closeUp(s, size)
+    if (document.querySelector('.stage')) pose = now
+    return now
+  }
 }
 
 type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void; cross?: number; onCross?: () => void; retarget?: () => { pos: THREE.Vector3; target: THREE.Vector3 } } | null
@@ -164,7 +176,7 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
     if (!selected) return
     const to = closeUp(selected, size)
     const fromT = controls?.target.clone() ?? OVERVIEW.target.clone()
-    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 2.6, cross: 0.8, onCross, retarget: () => closeUp(selected, size) })
+    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 2.6, cross: 0.8, onCross, retarget: retargetOnce(selected, size) })
   }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
