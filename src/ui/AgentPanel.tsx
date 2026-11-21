@@ -33,6 +33,14 @@ function Delta({ v }: { v: string | number | undefined }) {
   return <span className={`delta ${isGood(v) ? 'good' : 'bad'}`}>{String(v)}</span>
 }
 
+/** People lost in a run (overcome, or still inside), and how many that saves against today's procedure. */
+function Lives({ m, d }: { m: Record<string, unknown>; d: Record<string, string | number> }) {
+  const inside = typeof m.still_inside === 'number' ? m.still_inside : 0
+  const lost = Number(m.incapacitated) + inside
+  const saved = -Number(d.lost ?? d.incapacitated)
+  return <span className={saved > 0 ? 'saved' : lost > 0 ? 'lost' : ''}>{lost === 0 ? 'no one lost' : `${lost} lost`}{saved > 0 ? ` (${saved} saved)` : ''}</span>
+}
+
 function ResultLine({ result }: { result: unknown }) {
   const r = result as Record<string, unknown> | null
   if (!r) return null
@@ -42,7 +50,7 @@ function ResultLine({ result }: { result: unknown }) {
   if (m && d) return (
     <div className="run num">
       <b>{String(r.run_id)}</b>
-      <span className={Number(d.incapacitated) < 0 ? 'saved' : Number(m.incapacitated) > 0 ? 'lost' : ''}>{Number(m.incapacitated) === 0 ? 'no one lost' : `${String(m.incapacitated)} lost`}{Number(d.incapacitated) < 0 ? ` (${-Number(d.incapacitated)} saved)` : ''}</span>
+      <Lives m={m} d={d} />
       <span>{String(m.evacuation_time_s)}s <Delta v={d.evacuation_time} /></span>
       <span>smoke <Delta v={d.smoke_exposure} /></span>
       <span>crush <Delta v={d.crowd_crush} /></span>

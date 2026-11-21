@@ -22,6 +22,12 @@ describe('impactOf', () => {
     expect(i.stats.find(s => s.key === 'smoke')!.text).toBe('25% less')
     expect(i.stats.find(s => s.key === 'crush')!.text).toBe('30% less')
   })
+  it('counts people still inside as lost, the same way in every figure', () => {
+    const i = impactOf(m({ remaining: 2, evacuated: 98 }), m({}), BASELINE_STRATEGY, OFFICE_LAYOUT)
+    const lives = i.stats.find(s => s.key === 'lives')!
+    expect(i.livesSaved).toBe(2)
+    expect(lives).toMatchObject({ before: 2, after: 0, text: '2 lives saved' })
+  })
   it('reports a trade-off honestly', () => {
     const i = impactOf(m({}), m({ t90: 55 }), BASELINE_STRATEGY, OFFICE_LAYOUT)
     expect(i.stats.find(s => s.key === 't90')).toMatchObject({ better: false, text: '5s later' })

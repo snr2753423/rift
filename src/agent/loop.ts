@@ -179,7 +179,10 @@ export async function runFallbackAgent(input: AgentInput): Promise<AgentOutcome>
   input.onEvent({ kind: 'say', text: 'DEMO FALLBACK: scripted heuristic planner (not Nemotron). Metrics below are still real simulation output.' })
   const env = await call('inspect_environment', {})
   const open = new Set((env.exits as { id: string; status: string }[]).filter(e => e.status === 'open').map(e => e.id))
-  const guided = { name: 'Voice alert + queue-aware guidance', voiceAlert: 1, hazardAversion: 5, congestionAwareness: 0.8, reassessInterval: 3, exitBias: { SW_FIREDOOR: 0.9, NE_FIREDOOR: 0.9 } }
+  // announcements point people at every open exit except the one they would crowd into anyway
+  const exits = env.exits as { id: string; status: string; fire_door?: boolean }[]
+  const signage = Object.fromEntries(exits.filter(e => e.status === 'open' && !(input.scenario.layout?.exits.find(x => x.id === e.id)?.familiar)).map(e => [e.id, 0.9]))
+  const guided = { name: 'Voice alert + queue-aware guidance', voiceAlert: 1, hazardAversion: 5, congestionAwareness: 0.8, reassessInterval: 3, exitBias: signage }
   await call('run_simulation', guided)
   await call('analyze_bottlenecks', { run_id: 'R1' })
   const assign: Record<string, string> = {}

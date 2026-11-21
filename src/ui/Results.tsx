@@ -6,7 +6,7 @@ type Card = { label: string; hint: string; get: (m: Metrics) => number; fmt: (v:
 
 // everything here is "lower is better"
 const CARDS: Card[] = [
-  { label: 'People overcome', hint: 'by smoke or fire', get: m => m.incapacitated + m.remaining, fmt: v => String(Math.round(v)) },
+  { label: 'People lost', hint: 'overcome, or still inside at the end', get: m => m.incapacitated + m.remaining, fmt: v => String(Math.round(v)) },
   { label: 'Chaos', hint: 'crowd crush, person-seconds above 2.5 people/m²', get: m => m.congestionIndex, fmt: v => Math.round(v).toLocaleString() },
   { label: 'Smoke breathed', hint: 'average smoke dose per person', get: m => m.meanExposure, fmt: v => v.toFixed(1) },
   { label: 'Everyone out', hint: 'time until 90% have left', get: m => m.t90, fmt: v => v.toFixed(0), unit: 's' },

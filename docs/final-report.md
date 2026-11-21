@@ -98,3 +98,46 @@ These come from deterministic simulation. Nemotron chooses different strategies 
 3. **Multi-floor stairs.** Medium impact, large effort.
 4. **Code-split three/postprocessing** for faster first paint. Low impact, small effort.
 5. **Per-IP rate limiting** on the proxy if it is ever exposed beyond localhost. Low impact while the app stays local.
+
+## Afternoon update (2026-11-21, 16:13–17:30)
+
+**Built:** connected campus floors (every room on all 24 featured floors reaches every exit), a matched campus→twin fly-in, lawns, trees, lit windows and EXIT signs, a phone layout, and a guided first-run experience: a landing that explains what, how and why; a five-step rail; a live caption read from the simulation; a colour key; room names on the floor; an alarm pulse; and a Nemotron impact card shown before the side-by-side replay.
+
+**Casualty-first planning, kept honest.** "Nemotron always lowers casualties" is enforced, not faked. When today's procedure loses anyone, `commit_strategy` refuses any plan that does not lower that number, and the planner gets a real lever (`voiceAlert`: voice message plus wardens). When nobody is lost under either plan, the UI says "everyone survives" and leads with time, smoke and crowding.
+
+**New assumptions (illustrative, not calibrated):**
+- campus fire beside the everyday exit;
+- non-familiar exits feel 3× longer under today's procedure;
+- smoke dose to incapacitation of 24 smoke-seconds (office: 45);
+- fire spread 0.22, smoke yield 3.2;
+- a voice alert cuts pre-movement by up to 60%;
+- nobody spawns inside the fire.
+
+**Measured in the browser** after the review fixes, with people's exit habit kept in every plan (today's procedure → voice alarm plus signs, people lost). Total across 16 floors: 39 → 0.
+
+| Floor | Lost today → with plan |
+|---|---|
+| MSC floor 1 | 3 → 0 |
+| Zachry floor 1 | 2 → 0 |
+| Evans Library floor 1 | 8 → 0 |
+| Evans Library floor 2 | 14 → 0 |
+| Academic Building floor 1 | 5 → 0 |
+| Blocker floor 2 | 1 → 0 |
+| Rec Center floor 1 | 6 → 0 |
+
+The other floors lose nobody under either plan. A live Nemotron run on MSC floor 1 committed a plan that saved all 3 people: 90% out 8 s sooner, 96% less smoke breathed.
+
+**Recorded gap:** the `design-taste-frontend` skill and its gate scripts target static marketing pages. RIFT is an existing React/R3F app, so only its applicable rules were used:
+- show the mechanism early;
+- a standout opening moment;
+- motion under 300 ms that rests under reduced motion;
+- no invented figures;
+- no violet.
+
+`gate.mjs`, `sloplint` and the font-instancing steps were not run.
+
+**Checks that ran:**
+- vitest: 127 passing;
+- `tsc -b`, oxlint and `vite build`: clean;
+- Playwright at 1440×900 and 390×844: landing, pick, alarm, drill end, live Nemotron run, impact card, side by side;
+- code reviews after each batch. The second review found that plans silently dropped today's exit habit and that "lost" was counted two ways; both are fixed and re-measured.

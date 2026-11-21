@@ -250,7 +250,7 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
       title: '',
       rooms: semRooms,
       exits: exits.map((e, i) => ({ name: exitNames[i], x: fx(e.pt[0]), y: fy(e.pt[1]), familiar: i === 0 })),
-      fireRisk: fire ? { room: fire.name, x: fire.x + fire.w / 2, y: fire.y + fire.h / 2, reason: `right beside ${exitNames[0]}, the exit everyone uses` } : null,
+      fireRisk: fire ? { room: fire.name, x: fire.x + fire.w / 2, y: fire.y + fire.h / 2, reason: exitNames[0] ? `right beside ${exitNames[0]}, the exit everyone uses` : 'in the middle of the floor' } : null,
       notes: [],
     },
   }

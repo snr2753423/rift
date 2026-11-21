@@ -37,19 +37,26 @@ export function Impact() {
   const [open, setOpen] = useState(false)
   const seen = useRef<unknown>(null)
   const close = useRef<HTMLButtonElement>(null)
+  const pill = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(false)
+  useEffect(() => { if (wasOpen.current && !open) pill.current?.focus(); wasOpen.current = open }, [open])
   useEffect(() => { if (decision && decision !== seen.current) { seen.current = decision; setOpen(true) } }, [decision])
   useEffect(() => { if (open) close.current?.focus() }, [open])
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Tab') { e.preventDefault(); close.current?.focus() } // the dialog's one control keeps focus
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
   if (!decision || !baseline) return null
   const fallback = decision.provider === 'fallback'
   const im = impactOf(baseline, decision.metrics, decision.strategy, layout)
-  if (!open) return <button className="impact-pill" onClick={() => setOpen(true)}><span className="nv-dot" />{fallback ? 'Fallback plan: see the impact' : 'See Nemotron’s impact'}</button>
+  if (!open) return <button ref={pill} className="impact-pill" onClick={() => setOpen(true)}><span className="nv-dot" />{fallback ? 'Fallback plan: see the impact' : 'See Nemotron’s impact'}</button>
   const lives = im.stats[0]
+  const familiar = layout.exits.find(e => e.familiar)?.name
   return (
     <div className="impact-scrim" onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}>
       <section className="impact" role="dialog" aria-modal="true" aria-labelledby="impact-h">
@@ -59,9 +66,9 @@ export function Impact() {
           {fallback ? 'The scripted fallback' : 'Nemotron'} ran <b><Count to={runs} ms={600} /></b> full evacuations of {building ?? 'this floor'} through <b>{calls}</b> tool calls and kept the safest. A real fire drill tests one plan, once a year.
         </p>
         <div className={`impact-hero ${im.livesSaved > 0 ? 'saved' : ''}`}>
-          <div className="big num">{im.livesSaved > 0 ? <><Count to={im.livesSaved} /><small>{im.livesSaved === 1 ? 'life saved' : 'lives saved'}</small></> : <><Count to={decision.metrics.evacuated} /><small>of {decision.metrics.total} out alive</small></>}</div>
+          <div className="big num">{im.livesSaved > 0 ? <><Count to={im.livesSaved} /><small>{im.livesSaved === 1 ? 'life saved' : 'lives saved'}</small></> : <><Count to={decision.metrics.evacuated} /><small>of {decision.metrics.total} got out</small></>}</div>
           <p>{lives.before > 0
-            ? <>Today’s procedure loses <b>{lives.before}</b> {lives.before === 1 ? 'person' : 'people'} to smoke near the exit everyone uses. Nemotron’s plan loses <b>{lives.after}</b>.</>
+            ? <>Today’s procedure loses <b>{lives.before}</b> {lives.before === 1 ? 'person' : 'people'}{familiar ? <> as everyone heads for {familiar}, beside the fire</> : ' to the fire and smoke'}. Nemotron’s plan loses <b>{lives.after}</b>.</>
             : <>No one is lost under either plan here, so Nemotron went after speed, smoke and crowding instead.</>}</p>
         </div>
         <ul className="impact-stats">

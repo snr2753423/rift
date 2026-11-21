@@ -35,15 +35,16 @@ function narrate(sim: Simulation, drill: string, aiBusy: boolean, comparing: boo
   const ig = [...sim.scenario.ignitions, ...sim.world.extraIgnitions][0]
   const fire = ig ? areaName(ig.cell[0], ig.cell[1], L) : null
   if (sim.done) {
-    const lost = sim.incapacitated
+    const lost = sim.n - sim.evacuated // overcome, or still inside when the drill ends
     if (comparing) return { tone: 'ai', text: 'Same fire, same people, two plans: today’s procedure on the left, Nemotron’s on the right.' }
     return lost
-      ? { tone: 'bad', text: `Drill over. ${sim.evacuated} of ${sim.n} got out; ${lost} ${lost === 1 ? 'person was' : 'people were'} overcome by smoke. Ask Nemotron for a plan that saves them.` }
+      ? { tone: 'bad', text: `Drill over. ${sim.evacuated} of ${sim.n} got out; ${lost} ${lost === 1 ? 'person didn’t' : 'people didn’t'}. Ask Nemotron for a plan that saves them.` }
       : { tone: 'good', text: `Drill over. All ${sim.n} got out. Ask Nemotron whether they could have got out faster and breathed less smoke.` }
   }
   let waiting = 0
   for (let i = 0; i < sim.n; i++) if (sim.state[i] === AgentState.Waiting) waiting++
-  if (sim.incapacitated > 0 && !comparing) return { tone: 'bad', text: `${sim.incapacitated} ${sim.incapacitated === 1 ? 'person has' : 'people have'} been overcome by smoke. Most were heading for the exit they always use.` }
+  const known = L.exits.find(e => e.familiar)?.name
+  if (sim.incapacitated > 0 && !comparing) return { tone: 'bad', text: `${sim.incapacitated} ${sim.incapacitated === 1 ? 'person has' : 'people have'} been overcome by smoke.${known ? ` Most people are heading for ${known}, the way they came in.` : ''}` }
   if (sim.t < 4) return { tone: 'alarm', text: `Fire alarm! A fire has broken out${fire ? ` in ${fire}` : ''}.` }
   if (waiting > sim.n * 0.15) return { tone: 'warn', text: `${waiting} people still haven’t started moving. In real fires, this hesitation costs the most lives.` }
   let worst = -1, q = 0
@@ -62,7 +63,7 @@ export function Caption() {
   if (!sim) return null
   const ai = live.ai
   const { tone, text } = decision && ai && !busy
-    ? { tone: 'ai' as Tone, text: `Same fire, same people. Today: ${sim.evacuated} out${sim.incapacitated ? `, ${sim.incapacitated} overcome` : ''}. Nemotron’s plan: ${ai.evacuated} out${ai.incapacitated ? `, ${ai.incapacitated} overcome` : ', no one overcome'}.` }
+    ? { tone: 'ai' as Tone, text: `Same fire, same people. Today: ${sim.evacuated} out${sim.incapacitated ? `, ${sim.incapacitated} overcome` : ''}. Nemotron’s plan: ${ai.evacuated} out${ai.incapacitated ? `, ${ai.incapacitated} overcome` : ai.done && ai.evacuated === ai.n ? ', everyone safe' : ''}.` }
     : narrate(sim, drill, busy, Boolean(decision && ai), runs)
   // keyed by the kind of message (numbers stripped), so it fades in when the story changes, not on every count
   return <p className={`caption ${tone}`} role="status" aria-live="polite" key={tone + text.replace(/\d+/g, '#').slice(0, 28)}>{text}</p>
@@ -82,7 +83,7 @@ const ITEMS: { cls: string; label: string }[] = [
 
 /** What every colour on the floor means. Open by default; folds away once you know. */
 export function Legend() {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 900)
   return (
     <div className={`legend ${open ? 'open' : ''}`}>
       <button className="legend-toggle" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Hide key' : 'What am I looking at?'}</button>

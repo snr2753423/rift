@@ -471,3 +471,4 @@ svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentCol
 /* two views: the guide drops below both counters so neither is covered */
 .stage.compare .guide { top: 64px; }
 @media (max-width: 900px) { .stage.compare .guide { top: auto; } }
+@media (max-width: 900px) { .stage .legend { position: static; order: 1; justify-items: center; } }

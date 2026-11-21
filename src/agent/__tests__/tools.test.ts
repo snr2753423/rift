@@ -51,11 +51,18 @@ describe('agent tools', () => {
     const lossy = { ...baseline, incapacitated: 3 }
     const c = { ...ctx(), baseline: lossy }
     // a run that is faster on paper but loses the same 3 people must not be committed
-    c.runs.set('R1', { id: 'R1', strategy: {} as never, metrics: { ...baseline, incapacitated: 3, t90: baseline.t90 - 20 }, ms: 1 })
+    c.runs.set('R1', { id: 'R1', strategy: {} as never, metrics: { ...baseline, incapacitated: 2, remaining: 1, t90: baseline.t90 - 20 }, ms: 1 })
     const r = await executeTool('commit_strategy', JSON.stringify({ run_id: 'R1', headline: 'h', rationale: 'r', key_changes: [] }), c) as Record<string, unknown>
     expect(String(r.error)).toMatch(/casualt/i)
     c.runs.set('R2', { id: 'R2', strategy: {} as never, metrics: { ...baseline, incapacitated: 1 }, ms: 1 })
     expect(await executeTool('commit_strategy', JSON.stringify({ run_id: 'R2', headline: 'h', rationale: 'r', key_changes: [] }), c)).toEqual({ ok: true, committed: 'R2' })
+  })
+  it('keeps today’s exit habit unless the plan overrides it on purpose', async () => {
+    const c = ctx()
+    const r = await executeTool('run_simulation', JSON.stringify({ name: 'h', exitBias: { SW_FIREDOOR: 0.5 } }), c) as Record<string, unknown>
+    const bias = (r.applied_strategy as { exitBias: Record<string, number> }).exitBias
+    expect(bias.SW_FIREDOOR).toBe(0.5) // the plan's own signage
+    expect(bias.NE_FIREDOOR).toBe(1.8) // the habit it did not address
   })
   it('run_simulation accepts the voice alert lever', async () => {
     const c = ctx()

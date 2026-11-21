@@ -1,6 +1,6 @@
 import { CELL, OFFICE_LAYOUT, areaName, buildWorld } from '../sim/layout'
 import { distanceField } from '../sim/navigation'
-import { sanitizeStrategy } from '../sim/strategy'
+import { baselineFor, sanitizeStrategy } from '../sim/strategy'
 import type { LayoutDef, Metrics, Modification, Scenario, Strategy } from '../sim/types'
 import { pctDelta, safetyScore } from './score'
 import { simulate } from './simClient'
@@ -62,6 +62,7 @@ function deltas(base: Metrics, m: Metrics) {
     smoke_exposure: `${pctDelta(base.totalExposure, m.totalExposure)}%`,
     crowd_crush: `${pctDelta(base.congestionIndex, m.congestionIndex)}%`,
     incapacitated: m.incapacitated - base.incapacitated,
+    lost: (m.incapacitated + m.remaining) - (base.incapacitated + base.remaining),
   }
 }
 
@@ -95,7 +96,8 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
       walking_distance_m_from_zone_centre_to_exit: zoneExitDistances,
       hazards: [...ctx.scenario.ignitions.map(i => `Fire at t=${i.t}s in ${areaName(i.cell[0], i.cell[1], layout)}`), ...ctx.mods.map(m => describeMod(m, layout))],
       baseline_strategy: `Today's procedure: an alarm bell only (people take 4–18 s to start moving), everyone heads for the exit they know${layout.exits.some(e => e.familiar) ? ` (${layout.exits.filter(e => e.familiar).map(e => e.name).join(', ')}; every other exit is avoided, bias 1.8)` : ' and underuses fire doors (bias 1.8)'}, ignores queues and smoke, reassesses every 20 s.`,
-      casualties_today: ctx.baseline.incapacitated,
+      casualties_today: ctx.baseline.incapacitated + ctx.baseline.remaining,
+      habit_note: 'Every plan keeps today’s exit habit (the baseline exitBias) unless you set exitBias for that exit yourself.',
       baseline_metrics: compactMetrics(ctx.baseline),
       baseline_bottlenecks: ctx.baseline.hotspots,
     }
@@ -103,7 +105,10 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
 
   if (name === 'run_simulation') {
     if (ctx.runSeq >= (ctx.maxRuns ?? 8)) return { error: `simulation budget exhausted (${ctx.maxRuns ?? 8} runs) — commit the best run you have` }
-    const strategy = sanitizeStrategy(args, ctx.scenario.layout ?? OFFICE_LAYOUT)
+    const layout = ctx.scenario.layout ?? OFFICE_LAYOUT
+    const raw = sanitizeStrategy(args, layout)
+    // people's exit habit stays unless the plan addresses an exit on purpose (signage, announcements)
+    const strategy = { ...raw, exitBias: { ...baselineFor(layout).exitBias, ...raw.exitBias } }
     const id = `R${++ctx.runSeq}`
     const { metrics, ms } = await simulate(ctx.scenario, ctx.mods, strategy)
     const rec = { id, strategy, metrics, ms }
@@ -134,9 +139,10 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
   if (name === 'commit_strategy') {
     const rec = ctx.runs.get(String(args.run_id))
     if (!rec) return { error: `unknown run_id ${String(args.run_id)} — you must commit a run you simulated` }
-    const lost = ctx.baseline.incapacitated
-    if (lost > 0 && rec.metrics.incapacitated >= lost) {
-      return { error: `run ${rec.id} loses ${rec.metrics.incapacitated} people; today's procedure loses ${lost}. A plan must lower casualties before anything else. Try voiceAlert 1 so people react sooner, raise hazardAversion, and route zones near the fire away from it.` }
+    // lost = overcome, or still inside when the drill ends
+    const lost = ctx.baseline.incapacitated + ctx.baseline.remaining, runLost = rec.metrics.incapacitated + rec.metrics.remaining
+    if (lost > 0 && runLost >= lost) {
+      return { error: `run ${rec.id} loses ${runLost} people; today's procedure loses ${lost}. A plan must lower casualties before anything else. Try voiceAlert 1 so people react sooner, raise hazardAversion, and route zones near the fire away from it.` }
     }
     if (safetyScore(rec.metrics) > safetyScore(ctx.baseline)) {
       return { error: `run ${rec.id} is worse than the baseline on the safety score (incapacitations, t90, exposure). Try another strategy before committing.` }
