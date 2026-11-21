@@ -1,10 +1,10 @@
-import { Grid, Html } from '@react-three/drei'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { Grid } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CELL } from '../sim/layout'
 import type { Simulation } from '../sim/simulation'
 import type { World } from '../sim/types'
-import { useTicker } from '../state/live'
 import { gx, gz } from './coords'
 
 const WALL_H = 1.25
@@ -34,8 +34,49 @@ function Blocks({ cells, h, color, emissive, emissiveIntensity = 0, y = 0 }: { c
   )
 }
 
+/** Exit label drawn to a canvas texture (pure WebGL — no DOM portals). Redrawn only when the count changes. */
+function ExitLabel({ sim, index, y }: { sim: Simulation; index: number; y: number }) {
+  const e = sim.world.exits[index]
+  const { canvas, tex } = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512; canvas.height = 112
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 4
+    return { canvas, tex }
+  }, [])
+  useEffect(() => () => tex.dispose(), [tex])
+  const last = useRef(-1)
+  useFrame(() => {
+    const n = e.blocked ? -2 : sim.exitCount[index]
+    if (n === last.current) return
+    last.current = n
+    const g = canvas.getContext('2d')!
+    const accent = e.blocked ? '#ff4d5e' : '#3ddc84'
+    g.clearRect(0, 0, 512, 112)
+    g.fillStyle = 'rgba(5,10,8,0.86)'
+    g.strokeStyle = accent
+    g.lineWidth = 4
+    g.beginPath(); g.roundRect(4, 4, 504, 104, 18); g.fill(); g.stroke()
+    g.font = '500 40px "IBM Plex Mono", ui-monospace, monospace'
+    g.fillStyle = e.blocked ? '#ffc2c8' : '#cff7df'
+    g.textBaseline = 'middle'
+    g.fillText(e.name, 26, 57)
+    g.font = '600 44px "IBM Plex Mono", ui-monospace, monospace'
+    g.fillStyle = accent
+    g.textAlign = 'right'
+    g.fillText(e.blocked ? 'BLOCKED' : String(n), 488, 57)
+    g.textAlign = 'left'
+    tex.needsUpdate = true
+  })
+  return (
+    <sprite position={[0, y, 0]} scale={[4.4, 0.96, 1]} renderOrder={20}>
+      <spriteMaterial map={tex} transparent depthTest={false} toneMapped={false} />
+    </sprite>
+  )
+}
+
 function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
-  useTicker(4)
   const e = sim.world.exits[index]
   const xs = e.cells.map(c => c[0]), ys = e.cells.map(c => c[1])
   const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, cy = (Math.min(...ys) + Math.max(...ys) + 1) / 2
@@ -52,12 +93,7 @@ function ExitMarker({ sim, index }: { sim: Simulation; index: number }) {
         <boxGeometry args={horizontal ? [len, 0.05, 0.5] : [0.5, 0.05, len]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
-      <Html position={[0, 3.1, 0]} center distanceFactor={22} zIndexRange={[10, 0]}>
-        <div className={`exit-tag ${e.blocked ? 'blocked' : ''}`}>
-          <span>{e.name}</span>
-          <b>{e.blocked ? 'BLOCKED' : sim.exitCount[index]}</b>
-        </div>
-      </Html>
+      <ExitLabel sim={sim} index={index} y={3.3} />
     </group>
   )
 }

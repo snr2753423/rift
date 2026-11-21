@@ -54,8 +54,10 @@ export function createNemotronHandler(env) {
       temperature: typeof body.temperature === 'number' ? Math.min(1, Math.max(0, body.temperature)) : 0.3,
       top_p: 0.95,
       max_tokens: Math.min(Number(body.max_tokens) || 4096, 8192),
-      chat_template_kwargs: { enable_thinking: body.thinking !== false },
-      stream: false,
+      chat_template_kwargs: body.thinking === false
+        ? { enable_thinking: false }
+        : { enable_thinking: true, reasoning_budget: Math.min(4096, Math.max(128, Number(body.reasoning_budget) || 1200)) },
+      stream: body.stream === true,
     }
     const started = Date.now()
     try {
@@ -65,6 +67,14 @@ export function createNemotronHandler(env) {
         body: JSON.stringify(upstream),
         signal: AbortSignal.timeout(90_000),
       })
+      if (upstream.stream && r.ok && r.body) {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('X-Model', model)
+        for await (const chunk of r.body) res.write(chunk)
+        return res.end()
+      }
       const text = await r.text()
       if (!r.ok) {
         console.error('[nemotron] upstream', r.status, text.slice(0, 300))

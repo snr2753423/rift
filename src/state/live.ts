@@ -17,6 +17,7 @@ function rebuild() {
 
 let acc = 0
 let last = 0
+let holdUntil = 0
 let started = false
 export function startDriver() {
   if (started) return
@@ -31,7 +32,12 @@ export function startDriver() {
     const s = useRift.getState()
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
     last = now
-    if (s.playing) {
+    const finished = (live.baseline?.done ?? true) && (live.ai?.done ?? true)
+    if (finished && s.playing) {
+      holdUntil ||= now + 3500
+      if (now > holdUntil) { holdUntil = 0; rebuild() } // auto-replay keeps the twin alive between runs
+    }
+    if (s.playing && !finished) {
       acc += dt * s.speed
       let steps = 0
       while (acc >= DT && steps < 60) {

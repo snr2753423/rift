@@ -50,6 +50,7 @@ export async function engageAgent(replanChange?: Modification) {
     baseline,
     replan,
     onEvent: e => useRift.getState().pushEvent(e),
+    onPatch: (id, p) => useRift.getState().patchEvent(id, p),
     onRun: r => useRift.getState().addRun(r),
     signal: abort.signal,
   }
@@ -61,7 +62,7 @@ export async function engageAgent(replanChange?: Modification) {
     outcome = await runNemotronAgent(input)
   } catch (e) {
     if (abort.signal.aborted) { useRift.setState({ agentStatus: 'idle' }); return }
-    push({ kind: 'error', text: `Live Nemotron unavailable: ${e instanceof Error ? e.message : String(e)}. Switching to labeled demo fallback.` })
+    push({ kind: 'error', text: `Live Nemotron run did not complete (${e instanceof Error ? e.message : String(e)}). Switching to the labeled demo fallback.` })
     useRift.setState({ provider: 'fallback', runs: [] })
     try { outcome = await runFallbackAgent(input) } catch (err) {
       push({ kind: 'error', text: `Fallback failed: ${err instanceof Error ? err.message : String(err)}` })
@@ -84,11 +85,12 @@ export function cancelAgent() { abort?.abort() }
 let wired = false
 /** Recompute the baseline on any environment change; autonomously replan when a committed strategy exists. */
 export function wireAutomation() {
+  const st = useRift.getState()
+  if (!st.baseline && !st.baselineBusy) void computeBaseline()
   if (wired) return
   wired = true
   let lastScenario = useRift.getState().scenarioId
   let lastMods = useRift.getState().mods.length
-  void computeBaseline()
   useRift.subscribe(s => {
     if (s.scenarioId !== lastScenario) { lastScenario = s.scenarioId; lastMods = s.mods.length; void computeBaseline(); return }
     if (s.mods.length !== lastMods) {

@@ -43,6 +43,7 @@ function ResultChips({ result }: { result: unknown }) {
     return <div className="chips">{top.map(e => <span key={e.id} className="chip">{e.id} {e.min_clearance_s}s</span>)}</div>
   }
   if (r.exits) return <div className="chips"><span className="chip">{(r.exits as unknown[]).length} exits</span><span className="chip">{(r.zones as unknown[]).length} zones</span><span className="chip">baseline loaded</span></div>
+  if (r.strategy && r.evacuation_time_s !== undefined) return <div className="chips"><span className="chip">“{String(r.strategy)}” now</span><span className="chip">evac {String(r.evacuation_time_s)}s</span><span className="chip">t90 {String(r.t90_s)}s</span><span className="chip">{String(r.incapacitated)} high-exposure</span></div>
   if (r.ok) return <div className="chips"><span className="chip id">committed {String(r.committed)}</span></div>
   return <div className="chips"><span className="chip mono">{JSON.stringify(r).slice(0, 120)}</span></div>
 }
@@ -51,9 +52,9 @@ function EventRow({ e }: { e: AgentEvent }) {
   const [open, setOpen] = useState(false)
   if (e.kind === 'status') return <li className="ev status"><span className="dot" />{e.text}</li>
   if (e.kind === 'thought') return (
-    <li className="ev thought" onClick={() => setOpen(o => !o)}>
-      <header><span className="tag">REASONING</span>{e.latencyMs ? <span className="meta">{(e.latencyMs / 1000).toFixed(1)}s · {e.tokens ?? '—'} tok</span> : null}</header>
-      <p className={open ? '' : 'clamp'}>{e.text}</p>
+    <li className={`ev thought ${e.streaming ? 'live' : ''}`} onClick={() => setOpen(o => !o)}>
+      <header><span className="tag">REASONING</span>{e.streaming ? <span className="meta live-meta">streaming · {e.text.length} chars</span> : e.latencyMs ? <span className="meta">{(e.latencyMs / 1000).toFixed(1)}s · {e.tokens ?? '—'} tok</span> : null}</header>
+      <p className={e.streaming ? 'tail' : open ? 'full' : 'clamp'}>{e.streaming ? e.text.slice(-420) : e.text}</p>
     </li>
   )
   if (e.kind === 'say') return <li className="ev say"><p>{e.text}</p></li>
@@ -76,9 +77,11 @@ function EventRow({ e }: { e: AgentEvent }) {
 export function AgentPanel() {
   const { events, agentStatus, provider, runs, baseline, decision } = useRift()
   const list = useRef<HTMLOListElement>(null)
-  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }) }, [events.length])
+  const lastLen = events[events.length - 1]?.text.length ?? 0
+  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }) }, [events.length, lastLen])
   const calls = events.filter(e => e.kind === 'tool_call').length
   const latency = events.reduce((s, e) => s + (e.kind === 'thought' || e.kind === 'say' ? e.latencyMs ?? 0 : 0), 0)
+  const tokens = events.reduce((s, e) => s + (e.tokens ?? 0), 0)
   return (
     <aside className="rail right agent">
       <header className="agent-head">
@@ -96,7 +99,7 @@ export function AgentPanel() {
           ? <button className="btn ghost" onClick={cancelAgent}>Stop agent</button>
           : <button className="btn primary" disabled={!baseline} onClick={() => engageAgent()}>{decision ? 'Re-optimise' : 'Engage Nemotron'}</button>}
         <div className="agent-stats mono">
-          <span>{calls} tool calls</span><span>{runs.length} sims</span><span>{(latency / 1000).toFixed(1)}s model</span>
+          <span>{calls} tool calls</span><span>{runs.length} sims</span><span>{(latency / 1000).toFixed(1)}s model · {(tokens / 1000).toFixed(1)}k tok</span>
         </div>
       </div>
       {events.length === 0 ? (

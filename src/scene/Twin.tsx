@@ -19,6 +19,13 @@ const PRESETS = {
   top: new THREE.Vector3(0, 34, 0.01),
   low: new THREE.Vector3(-17, 7, 15),
 }
+/** compare mode: building rotated 90° so its long axis runs up the narrow viewport */
+const COMPACT = {
+  iso: new THREE.Vector3(0, 40, 25),
+  top: new THREE.Vector3(0, 46, 0.01),
+  low: new THREE.Vector3(-12, 10, 26),
+}
+const presetFor = (p: keyof typeof PRESETS, compact: boolean) => (compact ? COMPACT : PRESETS)[p]
 
 function CameraRig({ compact }: { compact: boolean }) {
   const preset = useRift(s => s.cameraPreset)
@@ -26,7 +33,7 @@ function CameraRig({ compact }: { compact: boolean }) {
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
   const target = useRef(new THREE.Vector3())
   useEffect(() => {
-    target.current.copy(PRESETS[preset]).multiplyScalar(compact ? 1.62 : 1)
+    target.current.copy(presetFor(preset, compact))
     const from = camera.position.clone()
     let k = 0, raf = 0
     const tick = () => {
@@ -49,7 +56,8 @@ function PickPlane({ sim }: { sim: Simulation }) {
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (tool === 'orbit' || e.delta > 5) return
     e.stopPropagation()
-    const m = modFromClick(tool, toCell(e.point.x, e.point.z), sim.world)
+    const local = e.eventObject.parent ? e.eventObject.parent.worldToLocal(e.point.clone()) : e.point
+    const m = modFromClick(tool, toCell(local.x, local.z), sim.world)
     if (m) addMod(m)
   }
   return (
@@ -68,7 +76,7 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
     <Canvas
       shadows={false}
       dpr={[1, 1.25]}
-      camera={{ position: PRESETS.iso.clone().multiplyScalar(compact ? 1.62 : 1), fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: presetFor('iso', compact).clone(), fov: 42, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ cursor: tool === 'orbit' ? 'grab' : 'crosshair' }}
     >
@@ -77,13 +85,15 @@ export function Twin({ sim, routeColor, crowdTint, compact = false }: { sim: Sim
       <ambientLight intensity={0.35} />
       <hemisphereLight args={['#9fd8ff', '#0a0d12', 0.55]} />
       <directionalLight position={[10, 20, 8]} intensity={0.9} color="#cfe8ff" />
-      <Structure sim={sim} />
-      <HeatmapLayer sim={sim} mode={heatmap} />
-      {showRoutes && <Routes sim={sim} color={routeColor} />}
-      <Crowd sim={sim} tint={crowdTint} />
-      <Fire sim={sim} />
-      <Smoke sim={sim} />
-      <PickPlane sim={sim} />
+      <group rotation-y={compact ? Math.PI / 2 : 0}>
+        <Structure sim={sim} />
+        <HeatmapLayer sim={sim} mode={heatmap} />
+        {showRoutes && <Routes sim={sim} color={routeColor} />}
+        <Crowd sim={sim} tint={crowdTint} />
+        <Fire sim={sim} />
+        <Smoke sim={sim} />
+        <PickPlane sim={sim} />
+      </group>
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={1.38} minDistance={10} maxDistance={70} />
       <CameraRig compact={compact} />
       <EffectComposer multisampling={0}>

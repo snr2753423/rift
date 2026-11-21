@@ -43,7 +43,8 @@ interface State {
   clearMods: () => void
   restart: () => void
   set: (p: Partial<State>) => void
-  pushEvent: (e: Omit<AgentEvent, 'id'>) => void
+  pushEvent: (e: Omit<AgentEvent, 'id'>) => number
+  patchEvent: (id: number, p: Partial<AgentEvent>) => void
   addRun: (r: RunRecord) => void
   resetAgent: () => void
 }
@@ -73,7 +74,8 @@ export const useRift = create<State>((set) => ({
   clearMods: () => set(s => ({ mods: [], epoch: s.epoch + 1 })),
   restart: () => set(s => ({ epoch: s.epoch + 1, playing: true })),
   set: (p) => set(p),
-  pushEvent: (e) => set(s => ({ events: [...s.events, { ...e, id: ++eventSeq }] })),
+  pushEvent: (e) => { const id = ++eventSeq; set(s => ({ events: [...s.events, { ...e, id }] })); return id },
+  patchEvent: (id, p) => set(s => ({ events: s.events.map(ev => (ev.id === id ? { ...ev, ...p } : ev)) })),
   addRun: (r) => set(s => ({ runs: [...s.runs, r] })),
   resetAgent: () => set({ events: [], runs: [] }),
 }))

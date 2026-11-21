@@ -1,6 +1,7 @@
 import { EXIT_IDS, ZONE_IDS } from '../sim/layout'
 import type { Metrics, Modification, Scenario, Strategy } from '../sim/types'
 import { safetyScore } from './score'
+import { readChatStream } from './stream'
 import { TOOL_DEFS, compactMetrics, describeMod, executeTool, type RunRecord, type ToolContext } from './tools'
 
 export type AgentEventKind = 'status' | 'thought' | 'say' | 'tool_call' | 'tool_result' | 'decision' | 'error'
@@ -13,6 +14,7 @@ export interface AgentEvent {
   result?: unknown
   latencyMs?: number
   tokens?: number
+  streaming?: boolean
 }
 export type Provider = 'nemotron' | 'fallback'
 export interface AgentOutcome {
@@ -29,12 +31,15 @@ export interface AgentInput {
   mods: Modification[]
   baseline: Metrics
   replan?: { change: Modification; previous: { strategy: Strategy; metricsNow: Metrics } }
-  onEvent: (e: Omit<AgentEvent, 'id'>) => void
+  onEvent: (e: Omit<AgentEvent, 'id'>) => number | void
+  onPatch?: (id: number, p: Partial<AgentEvent>) => void
   onRun?: (r: RunRecord) => void
   signal?: AbortSignal
 }
 
 const MAX_TURNS = 10
+/** per-turn thinking budget (tokens) — keeps each step to a few seconds on stage */
+const REASONING_BUDGET = 1024
 
 const SYSTEM = `You are RIFT, an autonomous evacuation-strategy engineer operating a digital twin of a building.
 You control real simulation tools. Every number you cite must come from a tool result — never invent metrics.
@@ -57,24 +62,39 @@ Method:
    assignments only help when a zone's alternative exit is close and under-used — never send a zone across the building.
 3. analyze_bottlenecks on the best run, then Round 2 — 1–3 refined candidates in parallel, targeting the measured bottleneck.
 4. commit_strategy with the best run. At most 7 simulations in total.
-Keep any text you write between tool calls to one or two short sentences.`
+Think efficiently: decide from the numbers, then act. Keep any text you write between tool calls to one or two short sentences.`
 
 interface ChatMessage { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string }
 interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
 
-async function chat(messages: ChatMessage[], signal?: AbortSignal) {
+async function chat(messages: ChatMessage[], input: AgentInput, budget: number | false) {
+  const started = performance.now()
   const r = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, tools: TOOL_DEFS, temperature: 0.3, max_tokens: 4096 }),
-    signal,
+    body: JSON.stringify({ messages, tools: TOOL_DEFS, temperature: 0.3, max_tokens: 6144, stream: true, thinking: budget !== false, reasoning_budget: budget || undefined }),
+    signal: input.signal,
   })
-  const json = await r.json().catch(() => null)
-  if (!r.ok || !json?.success) throw new Error(json?.error ?? `proxy error ${r.status}`)
-  const d = json.data
-  const msg = d.choices?.[0]?.message
-  if (!msg) throw new Error('empty completion')
-  return { msg, latencyMs: d.latencyMs as number, tokens: d.usage?.total_tokens as number | undefined, model: d.model as string }
+  if (!r.ok || !r.body || !r.headers.get('content-type')?.includes('event-stream')) {
+    const json = await r.json().catch(() => null)
+    throw new Error(json?.error ?? `proxy error ${r.status}`)
+  }
+  let thoughtId: number | null = null
+  let lastPaint = 0
+  const msg = await readChatStream(r.body, m => {
+    if (!m.reasoning) return
+    const now = performance.now()
+    if (thoughtId === null) {
+      const id = input.onEvent({ kind: 'thought', text: m.reasoning, streaming: true })
+      thoughtId = typeof id === 'number' ? id : null
+    } else if (now - lastPaint > 80) {
+      input.onPatch?.(thoughtId, { text: m.reasoning.slice(-4000) })
+      lastPaint = now
+    }
+  })
+  const latencyMs = Math.round(performance.now() - started)
+  if (thoughtId !== null) input.onPatch?.(thoughtId, { text: msg.reasoning.trim().slice(0, 4000), streaming: false, latencyMs, tokens: msg.tokens })
+  return { msg, latencyMs, tokens: msg.tokens, hadThought: thoughtId !== null }
 }
 
 function userBrief(input: AgentInput): string {
@@ -99,11 +119,14 @@ export async function runNemotronAgent(input: AgentInput): Promise<AgentOutcome>
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (input.signal?.aborted) throw new Error('aborted')
     input.onEvent({ kind: 'status', text: turn === 0 ? 'Nemotron is reading the twin…' : 'Nemotron is reasoning over the results…' })
-    const { msg, latencyMs, tokens } = await chat(messages, input.signal)
-    const reasoning: string = msg.reasoning_content ?? msg.reasoning ?? ''
-    if (reasoning.trim()) input.onEvent({ kind: 'thought', text: clip(reasoning.trim(), 600), latencyMs, tokens })
-    if (msg.content?.trim()) input.onEvent({ kind: 'say', text: clip(msg.content.trim(), 500), latencyMs, tokens })
-    const calls: ToolCall[] = msg.tool_calls ?? []
+    let { msg, latencyMs, tokens, hadThought } = await chat(messages, input, REASONING_BUDGET)
+    if (!msg.tool_calls.length && !msg.content.trim() && msg.finishReason === 'length') {
+      // reasoning overflowed the output window before acting: retry this turn in direct-action mode
+      input.onEvent({ kind: 'status', text: 'Reasoning hit the token ceiling — retrying this step in direct-action mode.' })
+      ;({ msg, latencyMs, tokens, hadThought } = await chat(messages, input, false))
+    }
+    if (msg.content?.trim()) input.onEvent({ kind: 'say', text: clip(msg.content.trim(), 500), latencyMs: hadThought ? undefined : latencyMs, tokens: hadThought ? undefined : tokens })
+    const calls: ToolCall[] = msg.tool_calls
     messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: calls.length ? calls : undefined })
     if (!calls.length) {
       if (ctx.committed || nudged) break
@@ -133,7 +156,7 @@ export async function runNemotronAgent(input: AgentInput): Promise<AgentOutcome>
   if (ctx.committed) {
     return { provider: 'nemotron', run: ctx.committed.run, headline: ctx.committed.headline, rationale: ctx.committed.rationale, changes: ctx.committed.changes, runs }
   }
-  if (!runs.length) throw new Error('Nemotron finished without running any simulation')
+  if (!runs.length) throw new Error('the Nemotron agent ended without running a simulation')
   const best = [...runs].sort((a, b) => safetyScore(a.metrics) - safetyScore(b.metrics))[0]
   const beat = safetyScore(best.metrics) <= safetyScore(input.baseline)
   input.onEvent({ kind: 'status', text: `Iteration budget reached without commit — auto-selected best simulated run ${best.id} by safety score.` })

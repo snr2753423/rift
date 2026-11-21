@@ -5,7 +5,7 @@ const POOL_SIZE = 3
 const pool: Worker[] = []
 let seq = 0
 let rr = 0
-const pending = new Map<number, { resolve: (v: { metrics: Metrics; ms: number }) => void; reject: (e: Error) => void }>()
+const pending = new Map<number, { worker: Worker; resolve: (v: { metrics: Metrics; ms: number }) => void; reject: (e: Error) => void }>()
 
 function onReply(e: MessageEvent<Reply>) {
   const p = pending.get(e.data.id)
@@ -19,6 +19,13 @@ function nextWorker(): Worker {
   if (pool.length < POOL_SIZE) {
     const w = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' })
     w.onmessage = onReply
+    w.onerror = ev => {
+      // worker failed to load or crashed: fail its jobs and drop it so the next call spawns a fresh one
+      console.error('simulation worker error', ev.message)
+      for (const [id, p] of pending) if (p.worker === w) { pending.delete(id); p.reject(new Error('simulation worker crashed')) }
+      pool.splice(pool.indexOf(w), 1)
+      w.terminate()
+    }
     pool.push(w)
     return w
   }
@@ -29,7 +36,8 @@ function nextWorker(): Worker {
 export function simulate(scenario: Scenario, mods: Modification[], strategy: Strategy) {
   const id = ++seq
   return new Promise<{ metrics: Metrics; ms: number }>((resolve, reject) => {
-    pending.set(id, { resolve, reject })
-    nextWorker().postMessage({ id, scenario, mods, strategy })
+    const w = nextWorker()
+    pending.set(id, { worker: w, resolve, reject })
+    w.postMessage({ id, scenario, mods, strategy })
   })
 }
