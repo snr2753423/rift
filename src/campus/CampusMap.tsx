@@ -25,28 +25,29 @@ function extrude(flat: number[], h: number): THREE.BufferGeometry | null {
 
 /** Camera pose straight above a building with its long axis across the screen, as the twin will show it. */
 export function closeUp(s: Spot, aspect: number) {
-  const span = s.size * 1.25
+  const span = s.size * 1.7
   const h = Math.max(span / aspect, span * 0.62) / (2 * Math.tan((FOV * Math.PI) / 360))
   const v = new THREE.Vector3(-Math.sin(s.angle), 0, Math.cos(s.angle))
   const target = new THREE.Vector3(s.center[0], 0, s.center[1])
   return { pos: target.clone().add(new THREE.Vector3(0, h, 0)).addScaledVector(v, h * 0.002), target }
 }
 
-type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void } | null
+type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void; cross?: number; onCross?: () => void } | null
 
 /** Eases the camera and orbit target along one flight, then hands control back to OrbitControls. */
 function Rig({ flight }: { flight: Flight }) {
   const camera = useThree(s => s.camera)
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
-  const st = useRef({ f: null as Flight, t0: 0, finished: true })
+  const st = useRef({ f: null as Flight, t0: 0, finished: true, crossed: false })
   useFrame(({ clock }) => {
     if (!flight || !controls) return
-    if (st.current.f !== flight) st.current = { f: flight, t0: clock.elapsedTime, finished: false }
+    if (st.current.f !== flight) st.current = { f: flight, t0: clock.elapsedTime, finished: false, crossed: false }
     if (st.current.finished) return
     const k = Math.min(1, (clock.elapsedTime - st.current.t0) / flight.dur), e = ease(k)
     camera.position.lerpVectors(flight.from, flight.to, e)
     controls.target.lerpVectors(flight.fromT, flight.toT, e)
     controls.update()
+    if (flight.cross !== undefined && k >= flight.cross && !st.current.crossed) { st.current.crossed = true; flight.onCross?.() }
     if (k >= 1) { st.current.finished = true; flight.done?.() }
   })
   return null
@@ -111,7 +112,7 @@ function Landmark({ spot, hovered, selected, busy, onHover, onPick }: { spot: Sp
         onPointerOut={() => onHover(null)}
         onClick={e => { e.stopPropagation(); if (!busy) onPick(spot) }}
       >
-        <meshStandardMaterial color={lit ? '#76b900' : '#c9ccd3'} emissive={lit ? '#76b900' : '#000000'} emissiveIntensity={lit ? 0.35 : 0} roughness={0.7} />
+        <meshStandardMaterial color={lit ? '#6e1a1a' : '#500000'} emissive={lit ? '#500000' : '#200000'} emissiveIntensity={lit ? 0.5 : 0.3} roughness={0.7} />
       </mesh>
     </group>
   )
@@ -128,10 +129,11 @@ export interface CampusMapProps {
   labels: Map<string, HTMLElement>
   onHover: (n: string | null) => void
   onPick: (s: Spot) => void
-  onArrived: () => void
+  /** fired part-way down the dive, when the twin should start fading in */
+  onCross: () => void
 }
 
-function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, onPick, onArrived }: CampusMapProps) {
+function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, onPick, onCross }: CampusMapProps) {
   const camera = useThree(s => s.camera)
   const size = useThree(s => s.size)
   const [flight, setFlight] = useState<Flight>(null)
@@ -148,7 +150,7 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
     if (!selected) return
     const to = closeUp(selected, size.width / size.height)
     const fromT = controls?.target.clone() ?? OVERVIEW.target.clone()
-    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 1.9, done: onArrived })
+    setFlight({ from: camera.position.clone(), to: to.pos, fromT, toT: to.target, dur: 2.6, cross: 0.68, onCross })
   }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>

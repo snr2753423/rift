@@ -24,17 +24,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   const view = useRift(s => s.view)
+  // panels wait off-screen until the campus map starts dissolving, then slide in around the twin
+  const hold = useRift(s => s.view === 'entering' && !Number.isFinite(s.enteredAt))
   return (
     <>
       {view !== 'campus' && (
-        <div className="app">
+        <div className={`app ${hold ? 'hold' : ''}`}>
           <TopBar />
           <Stage />
           <AgentPanel />
           <Results />
         </div>
       )}
-      {view !== 'twin' && <CampusView leaving={view === 'entering'} />}
+      {view !== 'twin' && <CampusView />}
     </>
   )
 }
