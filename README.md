@@ -1,118 +1,29 @@
-# RIFT — Reality Intelligence & Future Testing
+<p align="center"><img src="docs/logo.svg" width="80" alt="RIFT logo"></p>
 
-**Show RIFT a building. It builds a digital twin, sets it on fire, and lets an NVIDIA Nemotron agent test the future before it happens.**
+# RIFT
 
-RIFT is an AI digital-twin platform for emergency evacuation. It turns a building (a built-in office, or a floor-plan image you upload) into an interactive 3D simulation populated with hundreds of agent-based occupants. Fire spreads, smoke drifts, bottlenecks form. Then an autonomous **Nemotron** agent plans evacuation strategies, **runs real simulations as tool calls**, analyses the bottlenecks, iterates, and commits the best plan. It explains the plan with numbers measured in those runs. Drop an obstacle mid-demo and it replans on its own.
+**Built at tidalBYTE '26, Texas A&M, for the main track and NVIDIA's Best Use of Nemotron track.**
 
-> Simplified agent-based model for exploring strategies. **Not a certified safety prediction.**
+- Live Deployment: [rift-safety.netlify.app](https://rift-safety.netlify.app)
+- Hackathon: [tidalBYTE '26](https://f26.tidaltamu.com/), a 12-hour hackathon run by tidalTAMU in the MSC on November 21, 2026
 
----
+RIFT (Reality Intelligence & Future Testing) opens on a 3D map of Texas A&M. Pick a building and it becomes an evacuation digital twin with hundreds of simulated occupants, a spreading fire and drifting smoke. An NVIDIA Nemotron agent then plans the evacuation by running real simulations as tool calls, comparing the results, and committing the plan that beats unguided self-evacuation. Drop an obstacle, start a second fire or block an exit, and it replans on its own.
 
-## What the judges see
+- **Team:** Vignesh Nagarajan, Srivanth Rudrangi, Anish Koduri, Priyansh Ravrani
+- **Prompt:** apply AI and machine learning to real-world problems in ways that create meaningful interdisciplinary impact. The NVIDIA track asks for an agent doing real work, with Nemotron central to it.
+- **Sponsors:** Jane Street, NVIDIA, Google Gemini, Adobe, ElevenLabs, Base44 and others
+- **Datasets:** [OpenStreetMap](https://www.openstreetmap.org/) footprints, heights, entrances and footpaths for the main campus, via the Overpass API
+- **Stack:** React, TypeScript, Vite, three.js (React Three Fiber), Zustand, Web Workers, a Node proxy to NVIDIA's API
+- **Run it:** `npm install`, put your build.nvidia.com key in `.env.local` as `NVIDIA_API_KEY`, then `npm run dev`. See [how it works](docs/how-it-works.md) for the model, the simulation and the architecture.
 
-1. **A live 3D twin.** Bloom-lit blueprint walls, a glowing crowd, volumetric smoke, flickering fire, a danger heatmap, and flow-field route ribbons.
-2. **Engage Nemotron.** The activity panel streams the model's reasoning token by token, followed by its tool calls (`inspect_environment`, parallel `run_simulation`s, `analyze_bottlenecks`, `commit_strategy`) and the real metric deltas each run produced.
-3. **Side by side.** The baseline (unguided self-evacuation) and the AI-optimised plan replay in lockstep, with computed metric cards and evacuation curves.
-4. **Judge-injected chaos.** Press `O` (obstacle), `F` (fire) or `B` (block exit) and click the twin. The agent re-tests its committed plan under the new conditions and replans autonomously.
-5. **Reality input.** Upload a floor plan, or press *Clinic* or *L-school*. The twin keeps the drawing's **exact shape and proportions**:
-   - everything outside the outer walls is empty space;
-   - every walled area becomes its own room;
-   - exits come from the real gaps in the outer wall.
+## Demo
 
-   **Nemotron VL** names the rooms and exits and picks the likeliest ignition source. A new twin is ready in about 15 s.
+Open the site, pick **MSC** (where tidalBYTE is happening), and press **Optimise evacuation**.
 
-## How Nemotron is used (three essential roles)
+| Campus map | Twin of the MSC | Baseline vs. Nemotron plan |
+|:-:|:-:|:-:|
+| <img src="docs/screenshots/campus.jpg" width="270" alt="3D map of the Texas A&M main campus with eight labelled buildings and a list of them in the corner"> | <img src="docs/screenshots/msc-twin.jpg" width="270" alt="The MSC twin seconds after the fly-in: occupants heading for four exits while a fire burns in one of the rooms"> | <img src="docs/screenshots/zachry-compare.jpg" width="270" alt="Zachry baseline and agent plan side by side, the plan clearing 90 percent of people 7 percent sooner with 52 percent less crowd crush"> |
 
-| Role | Model | What it does | Evidence it's real |
-|---|---|---|---|
-| **Perception** | `nvidia/nemotron-3.5-super-vl-120b-a12b` (vision) | Reads a floor-plan image and returns room boxes, exits and the fire-risk room as JSON. The JSON is validated and becomes the twin's zones, exits and ignition point. | The import log shows the latency and room/exit counts; the overlay on the thumbnail is the model's output |
-| **Planner / tool user** | same model, tool calling, streamed reasoning (`reasoning_budget` 1024 per turn) | Inspects the twin, proposes contrasting strategies, runs them **in parallel** on a Web Worker pool, analyses bottlenecks, refines, and commits | Every metric chip in the panel comes from a deterministic simulation the model triggered |
-| **Replanner** | same | Receives the environment change plus the re-simulated performance of its previous plan, and adapts | Automatic on any obstacle, fire or blocked exit after a commit |
+Nemotron has three jobs. As **perception**, Nemotron VL reads a floor-plan image and returns rooms, exits and the likeliest fire source as validated JSON. As **planner**, it inspects the twin, proposes contrasting strategies, runs them in parallel on a Web Worker pool, reads the bottlenecks and commits a plan, with its reasoning streamed under a per-turn budget. As **replanner**, it re-tests its committed plan whenever the building changes. Every number it cites comes from a deterministic simulation it triggered, and `commit_strategy` refuses any plan that scores worse than the baseline.
 
-**Reliability engineering around the model:**
-
-- All tool arguments are untrusted and pass through `sanitizeStrategy`: clamped ranges, unknown ids dropped.
-- `commit_strategy` **refuses** a run that scores worse than the baseline.
-- A turn whose reasoning overflows the token window is retried in direct-action mode.
-- A hard simulation budget caps the number of runs.
-- A run that never commits is auto-selected by a deterministic safety score, and labelled as such.
-- If the API is unreachable, a **clearly labelled scripted fallback** runs the same real tools.
-
-A finding from the build: with thinking disabled, Nemotron mis-identified which exit clears last in a capacity question. With a 300-token reasoning budget it answered correctly (B, 38.5 s). That's why RIFT keeps budgeted reasoning on.
-
-## The simulation (technically meaningful, deliberately simple)
-
-- **Grid:** 64 × 40 cells at 0.5 m, about 32 × 20 m. The data-driven `LayoutDef` defines walls, furniture, exits and zones.
-- **Navigation:** multi-source **Dijkstra flow fields** per exit, with smoke- and fire-weighted costs, refreshed every simulated second. **A\*** answers route queries.
-- **Crowd:** 200–350 agents. Speed follows the **Weidmann (1993) speed–density** fundamental diagram, with smoke slowdown, spatial-hash separation and exit throughput limits of about 1.3 persons/m/s. Pre-movement delay and staged release are modelled.
-- **Hazards:** a cellular fire-spread model, and smoke diffusion with decay and venting at exits. Incapacitation uses a simplified smoke-dose threshold.
-- **Strategy levers** (what the agent controls): per-exit signage bias, warden zone→exit assignments, staged zone release, hazard aversion, queue-aware live guidance, and reassessment interval.
-- **Metrics, all computed:**
-  - time to 90% evacuated, and full evacuation time;
-  - smoke dose and high-exposure count;
-  - **crowd-crush time** (person-seconds above 2.5 p/m²) and peak density;
-  - per-exit usage, and hotspots with area names.
-- **Deterministic:** seeded RNG, fixed timestep, and separate RNG streams for hazards and population. Every strategy faces the identical fire, and the live replay matches the headless run the agent saw.
-
-## Run it
-
-```bash
-npm install
-```
-
-```bash
-cp .env.example .env.local
-```
-
-Put your build.nvidia.com key in `.env.local` as `NVIDIA_API_KEY=...`. The free endpoint works.
-
-```bash
-npm run dev
-```
-
-Open http://localhost:5173. For a production build served together with the key proxy:
-
-```bash
-npm run build && node server/serve.mjs
-```
-
-That serves http://127.0.0.1:4173. The key is read server-side only and never reaches the bundle.
-
-```bash
-npm test
-```
-
-That runs 39 tests: simulation, navigation, hazards, strategy sanitisation, agent tools, the full agent loop against scripted SSE streams, the stream parser, floor-plan CV, semantics validation and click mapping.
-
-## Architecture
-
-```
- floor-plan image ──► CV wall grid ─┐
-                    Nemotron VL ────┼─► LayoutDef ─► Scenario ──┐
- built-in scenarios ────────────────┘                          │
-                                                               ▼
-   ┌─────────────── browser ───────────────────────────────────────────────┐
-   │  R3F twin (bloom, smoke shader, instanced crowd)  ◄── live Simulation │
-   │  Agent panel ◄── loop.ts ──tool calls──► Web Worker pool (headless sims)│
-   │                     │                                                  │
-   └─────────────────────┼──────────────────────────────────────────────────┘
-                         ▼  /api/chat (SSE)
-           server/nemotron-proxy.mjs  (key, origin/content-type checks,
-                         │             model allow-list, timeouts, rate limit)
-                         ▼
-           integrate.api.nvidia.com/v1  ·  Nemotron 3.5 Super VL 120B-A12B
-```
-
-## Honest limitations
-
-- The simulation is a simplified research toy, not CFD or a validated egress model. Use it to compare strategies, not to certify a building.
-- Floor-plan import works at a 0.5 m grid of 64 × 40 cells, so it is **approximate**.
-  - Walls come from pixel thresholding.
-  - Rooms are the walled areas left once door-sized gaps (up to about 2 m) are closed.
-  - A doorway much wider than that merges two rooms, unless the vision model names both, in which case the merged area is split between them.
-  - Doors too narrow for the grid are repaired by adding a doorway, and the import log says so.
-  - Clean black-line plans work best.
-
-  Photo and video → 3D reconstruction is **not** implemented.
-- Occupancy for imported plans is modelled as a surge (at least 60% of floor-area capacity).
-- Single storey. No stairs or multi-floor egress.
+Building footprints and entrances are real map data, but detailed floor plans for campus buildings are not public. The interior of each campus twin is a schematic generated from its footprint (corridor, rooms, exits at the mapped entrances), and it is scaled to the simulation's 64 × 40 grid. The simulation is a simplified agent-based model for comparing strategies, **not a certified safety prediction**. The Netlify site has no server-side key, so it runs a clearly labelled scripted fallback that drives the same tools. Run it locally with a key to see live Nemotron.
