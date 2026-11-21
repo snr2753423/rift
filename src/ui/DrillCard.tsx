@@ -2,6 +2,8 @@ import { outcomeOf, personInZone, youIn, type Outcome, type You } from '../sim/o
 import { engageAgent } from '../state/actions'
 import { live, useTicker } from '../state/live'
 import { useRift } from '../state/store'
+import { loadCampus } from '../campus/data'
+import { openFloor } from '../campus/open'
 import { fmtTime } from './format'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
@@ -150,7 +152,37 @@ function Scoreboard() {
         <button className="btn" onClick={restart}>Watch again</button>
         <button className="btn ghost" onClick={() => set({ you: null, youRoom: null, drill: 'pick' })}>Try another spot</button>
       </div>
+      <WhatNext />
     </>
+  )
+}
+
+/** Where to go once both plans have played out, so the story never just stops. */
+function WhatNext() {
+  const { building, floor, floors, set } = useRift()
+  const done = useRift(s => s.drill === 'done')
+  const next = floor < floors ? floor + 1 : floors > 1 ? 1 : null
+  const goFloor = async (f: number) => {
+    const spot = (await loadCampus()).spots.find(x => x.name === building)
+    if (spot) await openFloor(spot, f)
+  }
+  return (
+    <div className={`next ${done ? 'ready' : ''}`}>
+      <span className="next-title">What next?</span>
+      <div className="next-grid">
+        <button className="next-card nv" onClick={() => set({ tool: 'block' })}>
+          <b>Throw a curveball</b><span>Block an exit and watch Nemotron replan on its own</span>
+        </button>
+        {building && next && (
+          <button className="next-card" onClick={() => void goFloor(next)}>
+            <b>Floor {next}</b><span>{next > 1 ? 'Upstairs, people leave by the stairwells' : 'Back to the ground floor'}</span>
+          </button>
+        )}
+        <button className="next-card" onClick={() => set({ view: 'campus' })}>
+          <b>Another building</b><span>Back to the campus map</span>
+        </button>
+      </div>
+    </div>
   )
 }
 

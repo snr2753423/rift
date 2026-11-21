@@ -4,6 +4,7 @@ import { CampusMap } from './CampusMap'
 import { loadCampus, type CampusData, type Spot } from './data'
 import { openFloor } from './open'
 import { floorsFor } from './plan'
+import { Wordmark } from '../ui/Wordmark'
 
 const FADE_MS = 900
 
@@ -68,18 +69,26 @@ export function CampusView() {
         </div>
       )}
       <header className={`campus-head ${selected ? 'hide' : ''}`}>
-        <span className="wordmark">RIFT<span>.</span></span>
+        <div className="brand-row"><Wordmark /><span className="nv-chip"><span className="nv-dot" />Powered by NVIDIA Nemotron</span></div>
         <h1>If the fire alarm went off right now, would you get out?</h1>
-        <p>{campus ? 'RIFT turns any Texas A&M building into a live fire drill with you inside it. Watch how today’s evacuation plays out, then watch NVIDIA Nemotron rewrite the plan to save more people, tested in real simulations, not guessed.' : 'Loading Texas A&M…'}</p>
+        <p>{campus ? 'RIFT turns a real Texas A&M building into a live fire drill with you inside it. In real fires, most people head for the way they came in, even when the fire is there. Watch it happen, then watch NVIDIA Nemotron rewrite the plan to save them.' : 'Loading Texas A&M…'}</p>
         {campus && (
           <>
+            <ul className="impact-strip" aria-label="What RIFT shows">
+              <li><b>39 → 0</b><span>people lost across 16 campus floors once the plan changes</span></li>
+              <li><b>~1 min</b><span>for Nemotron to run up to 10 full evacuations and prove a safer plan</span></li>
+              <li><b>{campus.spots.reduce((n, sp) => n + floorsFor(sp.height), 0)} floors</b><span>in {campus.spots.length} real buildings, built from OpenStreetMap</span></li>
+            </ul>
             <ol className="how">
               <li><b>1</b><span><strong>Pick a building</strong>Your floor, your room</span></li>
               <li><b>2</b><span><strong>Live the drill</strong>Fire, smoke, crowds, you</span></li>
-              <li className="nv"><b>3</b><span><strong>Nemotron plans</strong>Dozens of simulated drills</span></li>
+              <li className="nv"><b>3</b><span><strong>Nemotron plans</strong>Tested, not guessed</span></li>
             </ol>
-            <p className="why">In real fires, most people try to leave the way they came in, even when that is where the fire is. Drills test one plan a year. RIFT tests dozens in a minute.</p>
-            {startSpot && <button className="btn primary start" onClick={() => void pick(startSpot)}>Start in the {startSpot.short}<span aria-hidden>→</span></button>}
+            <div className="cta-row">
+              {startSpot && <button className="btn primary start" onClick={() => void pick(startSpot)}>Start in the {startSpot.short}<span aria-hidden>→</span></button>}
+              <span className="cta-alt">or pick any building on the map</span>
+            </div>
+            <p className="fine">Simulated with a deterministic crowd and smoke model. A tool for comparing plans, not a certified safety prediction.</p>
           </>
         )}
       </header>

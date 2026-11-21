@@ -10,11 +10,12 @@ import { Greenery } from './Greenery'
 import { withWindows } from './windows'
 import { toPoints } from './plan'
 
-const HEIGHT_SCALE = 1.5 // a little taller than life so the campus reads from far away
+const HEIGHT_SCALE = 1 // true scale: OpenStreetMap heights (or levels × 3.6 m) as built
 const FOV = 35
 const FLOOR_H = 3.6 * HEIGHT_SCALE // one storey, as drawn
-const OVERVIEW = { pos: new THREE.Vector3(520, 1250, 1500), target: new THREE.Vector3(0, 0, 120) }
-const INTRO_FROM = new THREE.Vector3(900, 2600, 2700)
+// aimed left of centre so the campus sits beside the landing story, not under it
+const OVERVIEW = { pos: new THREE.Vector3(20, 1250, 1500), target: new THREE.Vector3(-500, 0, 120) }
+const INTRO_FROM = new THREE.Vector3(520, 2600, 2700)
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
@@ -54,6 +55,12 @@ function retargetOnce(s: Spot, size: { width: number; height: number }) {
     if (document.querySelector('.stage')) pose = now
     return now
   }
+}
+
+/** A closer take on the overview, centred on one building: what you see after leaving its twin. */
+function nearView(s: Spot) {
+  const target = new THREE.Vector3(s.center[0], 0, s.center[1])
+  return { pos: target.clone().add(OVERVIEW.pos.clone().sub(OVERVIEW.target).multiplyScalar(0.55)), target }
 }
 
 type Flight = { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dur: number; done?: () => void; cross?: number; onCross?: () => void; retarget?: () => { pos: THREE.Vector3; target: THREE.Vector3 } } | null
@@ -169,8 +176,10 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
   // entry: fly in from high above, or back out from the building we just left (runs once per mount)
   useEffect(() => {
     const from = returnFrom ? closeUp(returnFrom, size) : { pos: INTRO_FROM, target: OVERVIEW.target }
+    // coming back from a building: pull out only part way, still centred on it
+    const to = returnFrom ? nearView(returnFrom) : { pos: OVERVIEW.pos, target: OVERVIEW.target }
     camera.position.copy(from.pos)
-    setFlight({ from: from.pos.clone(), to: OVERVIEW.pos.clone(), fromT: from.target.clone(), toT: OVERVIEW.target.clone(), dur: returnFrom ? 1.8 : 2.6, done: () => setSettled(true) })
+    setFlight({ from: from.pos.clone(), to: to.pos.clone(), fromT: from.target.clone(), toT: to.target.clone(), dur: returnFrom ? 1.8 : 2.6, done: () => setSettled(true) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selected) return

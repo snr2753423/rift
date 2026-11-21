@@ -36,7 +36,7 @@ function narrate(sim: Simulation, drill: string, aiBusy: boolean, comparing: boo
   const fire = ig ? areaName(ig.cell[0], ig.cell[1], L) : null
   if (sim.done) {
     const lost = sim.n - sim.evacuated // overcome, or still inside when the drill ends
-    if (comparing) return { tone: 'ai', text: 'Same fire, same people, two plans: today’s procedure on the left, Nemotron’s on the right.' }
+    if (comparing) return { tone: 'ai', text: 'Both drills are over. Pick what to try next: a curveball for Nemotron, another floor or another building.' }
     return lost
       ? { tone: 'bad', text: `Drill over. ${sim.evacuated} of ${sim.n} got out; ${lost} ${lost === 1 ? 'person didn’t' : 'people didn’t'}. Ask Nemotron for a plan that saves them.` }
       : { tone: 'good', text: `Drill over. All ${sim.n} got out. Ask Nemotron whether they could have got out faster and breathed less smoke.` }
@@ -53,16 +53,26 @@ function narrate(sim: Simulation, drill: string, aiBusy: boolean, comparing: boo
   return { tone: 'info', text: `${sim.evacuated} of ${sim.n} are out. Smoke is spreading${fire ? ` from ${fire}` : ''}; dashed lines show the routes people are taking.` }
 }
 
+const TOOL_HINTS: Partial<Record<string, string>> = {
+  block: 'Click an exit to block it. Nemotron will see the change and replan on its own.',
+  fire: 'Click anywhere on the floor to start a second fire. Nemotron will replan around it.',
+  obstacle: 'Click a corridor or doorway to drop an obstacle in it. Nemotron will replan around it.',
+}
+
 export function Caption() {
   useTicker(4)
   const drill = useRift(s => s.drill)
   const busy = useRift(s => s.agentStatus === 'running')
   const decision = useRift(s => s.decision)
   const runs = useRift(s => s.runs.length)
+  const tool = useRift(s => s.tool)
   const sim = live.baseline
   if (!sim) return null
   const ai = live.ai
-  const { tone, text } = decision && ai && !busy
+  const hint = TOOL_HINTS[tool]
+  const { tone, text } = hint && !busy ? { tone: 'warn' as Tone, text: hint }
+    : decision && ai && !busy && ai.done && sim.done ? narrate(sim, drill, busy, true, runs)
+    : decision && ai && !busy
     ? { tone: 'ai' as Tone, text: `Same fire, same people. Today: ${sim.evacuated} out${sim.incapacitated ? `, ${sim.incapacitated} overcome` : ''}. Nemotron’s plan: ${ai.evacuated} out${ai.incapacitated ? `, ${ai.incapacitated} overcome` : ai.done && ai.evacuated === ai.n ? ', everyone safe' : ''}.` }
     : narrate(sim, drill, busy, Boolean(decision && ai), runs)
   // keyed by the kind of message (numbers stripped), so it fades in when the story changes, not on every count

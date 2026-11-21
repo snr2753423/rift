@@ -7,6 +7,7 @@ import { useRift } from '../state/store'
 import { Icon } from './icons'
 import { ImportPanel } from './ImportPanel'
 import { useDismiss } from './useDismiss'
+import { Wordmark } from './Wordmark'
 
 function FloorPicker() {
   const { building, floor, floors, agentStatus } = useRift()
@@ -41,10 +42,11 @@ export function TopBar() {
   const anchor = useRef<HTMLDivElement>(null)
   useDismiss(anchor, importOpen, () => setImportOpen(false))
   const offline = provider === 'fallback'
+  const toCampus = () => { if (status === 'running') cancelAgent(); useRift.getState().set({ view: 'campus' }) }
   return (
     <header className="topbar">
-      <span className="wordmark">RIFT<span>.</span></span>
-      <button className="btn" onClick={() => { if (status === 'running') cancelAgent(); useRift.getState().set({ view: 'campus' }) }}><Icon name="map" />Campus</button>
+      <Wordmark onClick={toCampus} />
+      <button className="btn" onClick={toCampus}><Icon name="map" />Campus</button>
       {building ? (
         <>
           <h1 className="place">{building}</h1>

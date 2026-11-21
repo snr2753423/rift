@@ -10,7 +10,8 @@ const TOOLS: { id: ToolMode; label: string; hint: string; key: string; icon: Ico
   { id: 'block', label: 'Block exit', hint: 'Click near an exit to close it', key: 'B', icon: 'block' },
 ]
 const HEAT: Heatmap[] = ['off', 'danger', 'density', 'smoke']
-const SPEEDS = [1, 3, 6]
+// playback, in sim-seconds per real second (1.3x the original 1/3/6 steps)
+const SPEEDS = [1.3, 4, 8]
 
 function ViewMenu() {
   const s = useRift()
