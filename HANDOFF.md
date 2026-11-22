@@ -47,3 +47,5 @@ npm run lint && npm run build
 - Fire damage is identical under both plans (the plan changes how people move, not the fire), so the scoreboard says that instead of scoring it.
 - The offline fallback only runs when `/api/chat` is unreachable or has no key. It is labelled "Offline fallback" everywhere it appears.
 - Commits on this project carry no AI co-author lines.
+- The site opens behind a loading screen (`src/ui/Loader.tsx`, `src/ui/boot.ts`) that waits on real work: campus data, the 3D map's first frames, fonts and a keyless GET to `/api/chat` that reports whether Nemotron is online. It stays at least 2.2 s so its little drill plays once, never more than 14 s, and the campus fly-in starts as it lifts.
+- Nineteen buildings are featured (`src/campus/buildings.ts`), grouped in the sidebar. The Commons halls (Aston, Dunn, Krueger, Mosher) use `floors: 4` from Texas A&M Residence Life because OpenStreetMap's height undercounts them, and they show as small pins on the map so the cluster stays readable. Every floor of every featured building is covered by `src/campus/__tests__/plan.test.ts`.
