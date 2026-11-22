@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { OrbitControls as OrbitImpl } from 'three-stdlib'
 import type { CampusData, Spot } from './data'
+import { useBoot } from '../ui/boot'
 import { matchTwinPose, orientedBox, type Rect } from './framing'
 import { Greenery } from './Greenery'
 import { withWindows } from './windows'
@@ -120,13 +121,18 @@ function LabelTracker({ spots, labels }: { spots: Spot[]; labels: Map<string, HT
   const size = useThree(s => s.size)
   const v = useMemo(() => new THREE.Vector3(), [])
   useFrame(() => {
+    const blockers = [...document.querySelectorAll('.campus-head:not(.hide) > *, .campus-list')].map(b => b.getBoundingClientRect())
     for (const s of spots) {
       const el = labels.get(s.name)
       if (!el) continue
       v.set(s.center[0], s.height * HEIGHT_SCALE + 6, s.center[1]).project(camera)
-      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
+      const x = ((v.x + 1) / 2) * size.width, y = ((1 - v.y) / 2) * size.height
+      const w = el.offsetWidth, h = el.offsetHeight
+      const covered = blockers.some(r => x + w / 2 > r.left && x - w / 2 < r.right && y > r.top && y - h < r.bottom)
+      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1 && !covered
       el.style.opacity = visible ? '1' : '0'
-      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, -100%)`
+      el.style.pointerEvents = visible ? '' : 'none'
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`
     }
   })
   return null
@@ -166,6 +172,13 @@ export interface CampusMapProps {
   onCross: () => void
 }
 
+/** Tells the loading screen the campus has actually drawn (geometry built, shaders compiled). */
+function ReadySignal() {
+  const frames = useRef(0)
+  useFrame(() => { if (++frames.current === 3) useBoot.getState().mark('map') })
+  return null
+}
+
 function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, onPick, onCross }: CampusMapProps) {
   const camera = useThree(s => s.camera)
   const size = useThree(s => s.size)
@@ -173,13 +186,16 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
   const controls = useThree(s => s.controls) as unknown as OrbitImpl | null
   const [settled, setSettled] = useState(false)
   const [interacted, setInteracted] = useState(false)
-  // entry: fly in from high above, or back out from the building we just left (runs once per mount)
+  // entry: fly in from high above, or back out from the building we just left (runs once per mount).
+  // the first fly-in waits for the loading screen to lift so nobody misses it
   useEffect(() => {
     const from = returnFrom ? closeUp(returnFrom, size) : { pos: INTRO_FROM, target: OVERVIEW.target }
     // coming back from a building: pull out only part way, still centred on it
     const to = returnFrom ? nearView(returnFrom) : { pos: OVERVIEW.pos, target: OVERVIEW.target }
     camera.position.copy(from.pos)
-    setFlight({ from: from.pos.clone(), to: to.pos.clone(), fromT: from.target.clone(), toT: to.target.clone(), dur: returnFrom ? 1.8 : 2.6, done: () => setSettled(true) })
+    const go = () => setFlight({ from: from.pos.clone(), to: to.pos.clone(), fromT: from.target.clone(), toT: to.target.clone(), dur: returnFrom ? 1.8 : 2.8, done: () => setSettled(true) })
+    if (returnFrom || useBoot.getState().revealed) { go(); return }
+    return useBoot.subscribe(b => { if (b.revealed) go() })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selected) return
@@ -215,6 +231,7 @@ function Scene({ data, spots, selected, returnFrom, hovered, labels, onHover, on
         onStart={() => setInteracted(true)}
       />
       <Rig flight={flight} />
+      <ReadySignal />
       <LabelTracker spots={spots} labels={labels} />
     </>
   )
