@@ -3,6 +3,8 @@ import { useRift, type Heatmap, type ToolMode } from '../state/store'
 import { Icon, type IconName } from './icons'
 import { useDismiss } from './useDismiss'
 
+const SHORT: Partial<Record<ToolMode, string>> = { fire: 'Fire', obstacle: 'Obstacle', block: 'Block exit' }
+
 const TOOLS: { id: ToolMode; label: string; hint: string; key: string; icon: IconName }[] = [
   { id: 'orbit', label: 'Navigate', hint: 'Drag to orbit, scroll to zoom', key: 'V', icon: 'pointer' },
   { id: 'fire', label: 'Ignite fire', hint: 'Click the floor to start a fire', key: 'F', icon: 'fire' },
@@ -42,8 +44,8 @@ export function Toolbar() {
       )}
       <div className="toolbar" role="toolbar" aria-label="Twin controls">
         {TOOLS.map(t => (
-          <button key={t.id} className={`tb t-${t.id} ${s.tool === t.id ? 'on' : ''}`} title={`${t.label} (${t.key})`} aria-label={t.label} aria-pressed={s.tool === t.id} onClick={() => s.set({ tool: t.id })}>
-            <Icon name={t.icon} />
+          <button key={t.id} className={`tb t-${t.id} ${t.id !== 'orbit' ? 'labelled' : ''} ${s.tool === t.id ? 'on' : ''}`} title={`${t.label} (${t.key})`} aria-label={t.label} aria-pressed={s.tool === t.id} onClick={() => s.set({ tool: t.id })}>
+            <Icon name={t.icon} />{t.id !== 'orbit' && <span>{SHORT[t.id]}</span>}
           </button>
         ))}
         <span className="tb-sep" />
