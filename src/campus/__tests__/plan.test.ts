@@ -3,10 +3,13 @@ import { buildImportedScenario, findContentBox, rasterToGrid, type RasterImage }
 import { runHeadless, Simulation } from '../../sim/simulation'
 import { baselineFor } from '../../sim/strategy'
 import { FEATURED } from '../buildings'
-import { clipLine, floorsFor, generatePlan, principalAngle, toPoints, type Pt } from '../plan'
+import { clipLine, generatePlan, principalAngle, toPoints, type Pt } from '../plan'
 import campusRaw from '../../../public/campus.json?raw'
+import officialRaw from '../../../public/official.json?raw'
+import { spotFrom, type OfficialData } from '../data'
 
 const campus = JSON.parse(campusRaw) as { buildings: { n?: string; h: number; p: number[]; e?: Pt[] }[] }
+const official = JSON.parse(officialRaw) as OfficialData
 
 /** Rasterize wall segments the way a browser would draw the SVG (square caps). */
 function rasterize(walls: [Pt, Pt][], width: number): RasterImage {
@@ -38,10 +41,11 @@ describe('plan geometry', () => {
 
 describe('featured campus buildings', () => {
   for (const f of FEATURED) {
-    const b = campus.buildings.find(x => x.n === f.name)
-    it(`${f.short} is in the campus data`, () => { expect(b).toBeTruthy() })
-    if (!b) continue
-    for (let floor = 1; floor <= (f.floors ?? floorsFor(b.h)); floor++) it(`${f.short} floor ${floor}: everyone can evacuate`, () => {
+    const spot = spotFrom(f, campus.buildings.find(x => x.n === f.name), official.buildings[f.name])
+    it(`${f.short} has official Texas A&M data`, () => { expect(spot?.official).toBe(true) })
+    if (!spot) continue
+    const b = { p: spot.footprint, e: spot.entrances }
+    for (let floor = 1; floor <= spot.floors; floor++) it(`${f.short} floor ${floor}: everyone can evacuate`, () => {
       const plan = generatePlan({ footprint: b.p, entrances: b.e, rooms: f.rooms, floor })
       if (floor > 1) expect(plan.semantics.exits.every(e => e.name.startsWith('Stair'))).toBe(true)
       expect(plan.exitCount).toBeGreaterThanOrEqual(2)
@@ -54,7 +58,7 @@ describe('featured campus buildings', () => {
       const m = runHeadless({ ...scenario, ignitions: [] }, [], baselineFor(scenario.layout))
       expect(m.remaining).toBe(0)
     })
-    for (let floor = 1; floor <= Math.min(3, floorsFor(b.h)); floor++) it(`${f.short} floor ${floor}: one connected floor, so a plan has real choices`, () => {
+    for (let floor = 1; floor <= Math.min(3, spot.floors); floor++) it(`${f.short} floor ${floor}: one connected floor, so a plan has real choices`, () => {
       const plan = generatePlan({ footprint: b.p, entrances: b.e, rooms: f.rooms, floor })
       const img = rasterize(plan.walls, plan.wallWidth)
       const grid = rasterToGrid(img, findContentBox(img), 64, 40)

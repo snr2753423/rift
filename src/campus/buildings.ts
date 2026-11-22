@@ -7,8 +7,10 @@ export interface Featured {
   note?: string
   /** sidebar section */
   group: 'Campus life' | 'Academics' | 'Residence halls'
-  /** real floor count when OpenStreetMap's height undercounts it (Texas A&M Residence Life lists the Commons halls at 4) */
+  /** floor count to use when neither Texas A&M Facilities GIS nor OpenStreetMap gives one */
   floors?: number
+  /** keep OpenStreetMap's outline: the university outline pinches below one simulation cell and splits a wing off */
+  osmOutline?: boolean
   /** drawn as a small pin, named on hover, so clustered buildings don't bury each other's labels */
   minor?: boolean
 }
@@ -26,12 +28,12 @@ export const FEATURED: Featured[] = [
   { name: 'Sbisa Dining Hall', short: 'Sbisa', kind: 'Dining hall', group: 'Campus life', rooms: ['Dining Hall', 'Kitchen', 'Servery', 'Bakery', 'Lounge', 'Storage'] },
   { name: 'Koldus Building', short: 'Koldus', kind: 'Student services', group: 'Campus life', rooms: ['Lobby', 'Student Services', 'Meeting Room', 'Office', 'Conference Room'] },
   { name: 'Interdisciplinary Life Sciences Building', short: 'ILSB', kind: 'Labs', group: 'Academics', rooms: ['Atrium', 'Lab', 'Lecture Hall', 'Prep Room', 'Classroom', 'Study Area', 'Office'] },
-  { name: 'Wehner Building', short: 'Wehner', kind: 'Mays Business', group: 'Academics', rooms: ['Classroom', 'Lecture Hall', 'Study Room', 'Career Center', 'Lounge', 'Office', 'Cafe'] },
+  { name: 'Wehner Building', short: 'Wehner', kind: 'Mays Business', group: 'Academics', osmOutline: true, rooms: ['Classroom', 'Lecture Hall', 'Study Room', 'Career Center', 'Lounge', 'Office', 'Cafe'] },
   { name: 'Rudder Tower', short: 'Rudder Tower', kind: 'Offices', group: 'Academics', rooms: ['Lobby', 'Office', 'Meeting Room', 'Conference Room'] },
-  { name: "Aston Residence Hall", short: "Aston", kind: 'Commons hall', group: 'Residence halls', floors: 4, minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
-  { name: "Dunn Residence Hall", short: "Dunn", kind: 'Commons hall', group: 'Residence halls', floors: 4, minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
-  { name: "Krueger Residence Hall", short: "Krueger", kind: 'Commons hall', group: 'Residence halls', floors: 4, minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
-  { name: "Mosher Residence Hall", short: "Mosher", kind: 'Commons hall', group: 'Residence halls', floors: 4, minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
+  { name: "Aston Residence Hall", short: "Aston", kind: 'Commons hall', group: 'Residence halls', minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
+  { name: "Dunn Residence Hall", short: "Dunn", kind: 'Commons hall', group: 'Residence halls', minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
+  { name: "Krueger Residence Hall", short: "Krueger", kind: 'Commons hall', group: 'Residence halls', minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
+  { name: "Mosher Residence Hall", short: "Mosher", kind: 'Commons hall', group: 'Residence halls', minor: true, rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
   { name: 'Hullabaloo Residence Hall', short: 'Hullabaloo', kind: 'Residence hall', group: 'Residence halls', rooms: ["Suite A","Suite B","Study Lounge","Suite C","Suite D","Laundry","Suite E","Suite F","Community Kitchen","Suite G"] },
 ]
 
