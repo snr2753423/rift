@@ -26,7 +26,7 @@ export function loadCampus() {
       const pts = toPoints(b.p)
       const xs = pts.map(p => p[0]), zs = pts.map(p => p[1])
       spots.push({
-        ...f, footprint: b.p, entrances: b.e ?? [], height: b.h, angle: principalAngle(pts),
+        ...f, footprint: b.p, entrances: b.e ?? [], height: f.floors ? f.floors * 3.6 : b.h, angle: principalAngle(pts),
         center: [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2],
         size: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)),
       })

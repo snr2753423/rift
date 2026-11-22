@@ -23,7 +23,7 @@ In a real fire, most people try to leave the way they came in, even when that is
 
 RIFT puts you inside your own building, sets a fire beside the exit everyone uses, and lets you watch what today's procedure does to the people around you. Then NVIDIA Nemotron rewrites the plan by running dozens of full evacuations in about a minute. It can add a voice alarm and floor wardens, change signs, send rooms to other exits, and steer people around the smoke, and it cannot commit a plan that loses as many lives as today's.
 
-In RIFT's campus drills, today's procedure loses **39 people across the first two floors of the eight featured buildings**: 3 of 105 in the MSC, 8 of 140 on Evans Library floor 1, 14 of 170 on floor 2. A voice alarm with signs to the other exits loses **none**, and gets 90% of people out sooner on every floor, often in less than half the time. People keep their habit in every plan unless the plan addresses it, so none of that saving is assumed away. On MSC floor 1, live Nemotron found a plan that saves all 3.
+In RIFT's campus drills, today's procedure loses **39 people across the first two floors of the original eight featured buildings**: 3 of 105 in the MSC, 8 of 140 on Evans Library floor 1, 14 of 170 on floor 2. A voice alarm with signs to the other exits loses **none**, and gets 90% of people out sooner on every floor, often in less than half the time. People keep their habit in every plan unless the plan addresses it, so none of that saving is assumed away. On MSC floor 1, live Nemotron found a plan that saves all 3.
 
 ## Demo
 

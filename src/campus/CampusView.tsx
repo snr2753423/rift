@@ -61,7 +61,7 @@ export function CampusView() {
       {campus && (
         <div className={`landmarks ${selected ? 'hide' : ''}`}>
           {campus.spots.map(s => (
-            <button key={s.name} ref={el => { if (el) labels.current.set(s.name, el); else labels.current.delete(s.name) }} className={`landmark ${hovered === s.name ? 'on' : ''} ${s.note ? 'here' : ''}`}
+            <button key={s.name} ref={el => { if (el) labels.current.set(s.name, el); else labels.current.delete(s.name) }} className={`landmark ${hovered === s.name ? 'on' : ''} ${s.note ? 'here' : ''} ${s.minor ? 'minor' : ''}`} aria-label={s.name}
               onPointerEnter={() => setHovered(s.name)} onPointerLeave={() => setHovered(null)} onClick={() => void pick(s)}>
               {s.note && <i aria-hidden />}{s.short}
             </button>
@@ -83,10 +83,11 @@ export function CampusView() {
               <li><b>1</b><span><strong>Pick a building</strong>Your floor, your room</span></li>
               <li><b>2</b><span><strong>Live the drill</strong>Fire, smoke, crowds, you</span></li>
               <li className="nv"><b>3</b><span><strong>Nemotron plans</strong>Tested, not guessed</span></li>
+              <li className="nv"><b>4</b><span><strong>Throw a curveball</strong>Block an exit or start a second fire; it replans live</span></li>
             </ol>
             <div className="cta-row">
               {startSpot && <button className="btn primary start" onClick={() => void pick(startSpot)}>Start in the {startSpot.short}<span aria-hidden>→</span></button>}
-              <span className="cta-alt">or pick any building on the map</span>
+              <span className="cta-alt">or pick any of {campus.spots.length} buildings on the map. Have a floor plan? Upload it from inside any drill.</span>
             </div>
             <p className="fine">Simulated with a deterministic crowd and smoke model. A tool for comparing plans, not a certified safety prediction.</p>
           </>
@@ -95,10 +96,15 @@ export function CampusView() {
       {campus && !selected && (
         <nav className="campus-list" aria-label="Buildings">
           <span className="list-title">Texas A&amp;M · College Station</span>
-          {campus.spots.map(s => (
-            <button key={s.name} className={hovered === s.name ? 'on' : ''} onPointerEnter={() => setHovered(s.name)} onPointerLeave={() => setHovered(null)} onClick={() => void pick(s)}>
-              <b>{s.short}</b><span>{s.note ?? `${s.kind} · ${floorsFor(s.height)} fl`}</span>
-            </button>
+          {(['Campus life', 'Academics', 'Residence halls'] as const).map(g => (
+            <section key={g} aria-label={g}>
+              <span className="list-group">{g}</span>
+              {campus.spots.filter(s => s.group === g).map(s => (
+                <button key={s.name} className={hovered === s.name ? 'on' : ''} onPointerEnter={() => setHovered(s.name)} onPointerLeave={() => setHovered(null)} onClick={() => void pick(s)}>
+                  <b>{s.short}</b><span>{s.note ?? `${s.kind} · ${floorsFor(s.height)} fl`}</span>
+                </button>
+              ))}
+            </section>
           ))}
           <button className="demo" onClick={openDemo}><b>Demo office</b><span>Built-in scenarios</span></button>
         </nav>

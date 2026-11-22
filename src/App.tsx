@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { wireAutomation } from './state/actions'
 import { startDriver } from './state/live'
 import { CampusView } from './campus/CampusView'
+import { startBoot } from './ui/boot'
+import { Loader } from './ui/Loader'
 import { useRift, type ToolMode } from './state/store'
 import { AgentPanel } from './ui/AgentPanel'
 import { Results } from './ui/Results'
@@ -12,6 +14,7 @@ const KEYS: Record<string, ToolMode> = { v: 'orbit', f: 'fire', o: 'obstacle', b
 
 export default function App() {
   useEffect(() => {
+    startBoot()
     startDriver()
     wireAutomation()
     const onKey = (e: KeyboardEvent) => {
@@ -37,6 +40,7 @@ export default function App() {
         </div>
       )}
       {view !== 'twin' && <CampusView />}
+      <Loader />
     </>
   )
 }
