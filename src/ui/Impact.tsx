@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { OFFICE_LAYOUT } from '../sim/layout'
 import { scenarioOf, useRift } from '../state/store'
 import { impactOf } from './impactStats'
+import { exportNemotronPlan } from './exportPlan'
 
 const still = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -87,6 +88,7 @@ export function Impact() {
         )}
         <p className="impact-fine">Measured in RIFT’s simulation of this floor (same fire, same people, deterministic). A model for comparing plans, not a certified safety prediction.</p>
         <button ref={close} className="btn nvidia" onClick={() => setOpen(false)}>Watch both plans side by side</button>
+        <button className="btn" onClick={exportNemotronPlan}>Download the plan as a PDF</button>
       </section>
     </div>
   )

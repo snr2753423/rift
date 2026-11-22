@@ -3,7 +3,6 @@ import { useRift } from '../state/store'
 import { CampusMap } from './CampusMap'
 import { loadCampus, type CampusData, type Spot } from './data'
 import { openFloor } from './open'
-import { floorsFor } from './plan'
 import { Wordmark } from '../ui/Wordmark'
 
 const FADE_MS = 900
@@ -75,9 +74,9 @@ export function CampusView() {
         {campus && (
           <>
             <ul className="impact-strip" aria-label="What RIFT shows">
-              <li><b>39 → 0</b><span>people lost across 16 campus floors once the plan changes</span></li>
+              <li><b>31 → 14</b><span>people lost across 16 campus floors with just a voice alarm and signs; Nemotron's tested plans go further</span></li>
               <li><b>~1 min</b><span>for Nemotron to run up to 10 full evacuations and prove a safer plan</span></li>
-              <li><b>{campus.spots.reduce((n, sp) => n + floorsFor(sp.height), 0)} floors</b><span>in {campus.spots.length} real buildings, built from OpenStreetMap</span></li>
+              <li><b>{campus.spots.reduce((n, sp) => n + sp.floors, 0)} floors</b><span>in {campus.spots.length} real buildings: outlines, doors and floor counts from Texas A&amp;M's own facilities map</span></li>
             </ul>
             <ol className="how">
               <li><b>1</b><span><strong>Pick a building</strong>Your floor, your room</span></li>
@@ -101,7 +100,7 @@ export function CampusView() {
               <span className="list-group">{g}</span>
               {campus.spots.filter(s => s.group === g).map(s => (
                 <button key={s.name} className={hovered === s.name ? 'on' : ''} onPointerEnter={() => setHovered(s.name)} onPointerLeave={() => setHovered(null)} onClick={() => void pick(s)}>
-                  <b>{s.short}</b><span>{s.note ?? `${s.kind} · ${floorsFor(s.height)} fl`}</span>
+                  <b>{s.short}</b><span>{s.note ?? `${s.kind} · ${s.floors} fl`}</span>
                 </button>
               ))}
             </section>

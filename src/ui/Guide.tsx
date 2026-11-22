@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { areaName } from '../sim/layout'
 import { AgentState, type Simulation } from '../sim/simulation'
 import { live, useTicker } from '../state/live'
@@ -94,6 +94,9 @@ const ITEMS: { cls: string; label: string }[] = [
 /** What every colour on the floor means. Open by default; folds away once you know. */
 export function Legend() {
   const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 900)
+  // the side-by-side view needs every pixel: fold the key away once there are two runs to watch
+  const comparing = useRift(s => Boolean(s.decision))
+  useEffect(() => { if (comparing) setOpen(false) }, [comparing])
   return (
     <div className={`legend ${open ? 'open' : ''}`}>
       <button className="legend-toggle" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Hide key' : 'What am I looking at?'}</button>

@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { outcomeOf, personInZone, youIn, type Outcome, type You } from '../sim/outcome'
 import { engageAgent } from '../state/actions'
+import { exportNemotronPlan } from './exportPlan'
 import { live, useTicker } from '../state/live'
 import { useRift } from '../state/store'
 import { loadCampus } from '../campus/data'
@@ -149,6 +151,7 @@ function Scoreboard() {
       </table>
       <p className="fine">Fire damage is the same under both plans ({Math.round(ob.fireDamage * 100)}% of this floor): the plan changes how people move, not how the fire spreads.</p>
       <div className="actions">
+        <button className="btn nvidia" onClick={exportNemotronPlan}>Download Nemotron's evacuation plan (PDF)</button>
         <button className="btn" onClick={restart}>Watch again</button>
         <button className="btn ghost" onClick={() => set({ you: null, youRoom: null, drill: 'pick' })}>Try another spot</button>
       </div>
@@ -192,7 +195,18 @@ export function DrillCard() {
   const decision = useRift(s => s.decision)
   const you = useRift(s => s.you)
   const status = useRift(s => s.agentStatus)
+  const [hidden, setHidden] = useState(false)
+  const compare = Boolean(decision && live.ai)
+  useEffect(() => { setHidden(false) }, [drill, decision])
   if (!live.baseline) return null
-  const body = drill === 'pick' || you === null ? <Picker /> : drill === 'ready' ? <Ready /> : drill === 'running' ? <Running /> : decision && live.ai ? <Scoreboard /> : <Result />
-  return <div className={`drill ${drill} ${decision && drill === 'done' ? 'wide' : ''} ${status === 'running' ? 'busy' : ''}`}>{body}</div>
+  // side by side: both runs stay uncovered while they play; each view's header says where you are
+  if (compare && drill === 'running') return null
+  if (hidden) return <button className="drill-show" onClick={() => setHidden(false)}>{compare ? 'Show the scoreboard' : 'Show your drill'}</button>
+  const body = drill === 'pick' || you === null ? <Picker /> : drill === 'ready' ? <Ready /> : drill === 'running' ? <Running /> : compare ? <Scoreboard /> : <Result />
+  return (
+    <div className={`drill ${drill} ${compare && drill === 'done' ? 'wide' : ''} ${status === 'running' ? 'busy' : ''}`}>
+      {drill === 'done' && <button className="drill-hide" onClick={() => setHidden(true)} aria-label="Hide this card to see the floor">Hide</button>}
+      {body}
+    </div>
+  )
 }

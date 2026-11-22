@@ -178,7 +178,19 @@ export function generatePlan({ footprint, entrances = [], rooms: roomList, floor
   })
 
   // --- interior: a corridor along the long axis, a cross corridor for squat buildings, rooms off them
-  const yc = (B.y0 + B.y1) / 2, xc = (B.x0 + B.x1) / 2
+  const xc = (B.x0 + B.x1) / 2
+  // the corridor runs where the building is continuous end to end, nearest the middle: a notch or courtyard
+  // across the centre line would otherwise split the floor into two halves that never meet
+  const pieces = (y: number) => clipLine(poly, 0, y).length
+  const split = (y: number) => pieces(y - half) > 1 || pieces(y) > 1 || pieces(y + half) > 1
+  const mid = (B.y0 + B.y1) / 2
+  let yc = mid
+  if (split(mid)) {
+    for (let k = 1; k <= 60; k++) {
+      const y = [mid + k * cell * 0.5, mid - k * cell * 0.5].find(v => v - half > B.y0 + cell && v + half < B.y1 - cell && !split(v))
+      if (y !== undefined) { yc = y; break }
+    }
+  }
   const cross = B.w / B.h < 1.45
   const hBand: [number, number] = [yc - half, yc + half], vBand: [number, number] = [xc - half, xc + half]
   const xs: number[] = []
