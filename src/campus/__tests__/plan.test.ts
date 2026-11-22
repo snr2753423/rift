@@ -41,7 +41,7 @@ describe('featured campus buildings', () => {
     const b = campus.buildings.find(x => x.n === f.name)
     it(`${f.short} is in the campus data`, () => { expect(b).toBeTruthy() })
     if (!b) continue
-    for (let floor = 1; floor <= floorsFor(b.h); floor++) it(`${f.short} floor ${floor}: everyone can evacuate`, () => {
+    for (let floor = 1; floor <= (f.floors ?? floorsFor(b.h)); floor++) it(`${f.short} floor ${floor}: everyone can evacuate`, () => {
       const plan = generatePlan({ footprint: b.p, entrances: b.e, rooms: f.rooms, floor })
       if (floor > 1) expect(plan.semantics.exits.every(e => e.name.startsWith('Stair'))).toBe(true)
       expect(plan.exitCount).toBeGreaterThanOrEqual(2)
